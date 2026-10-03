@@ -1,0 +1,89 @@
+.camera-panel {
+  padding: 24px;
+  margin-bottom: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #111a25;
+}
+.camera-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.camera-heading h2 {
+  margin: 0;
+  font-size: 24px;
+}
+.camera-badge {
+  color: var(--orange);
+  font-size: 13px;
+}
+.camera-help,
+.camera-status {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.camera-frame {
+  position: relative;
+  width: min(100%, 720px);
+  aspect-ratio: 16 / 9;
+  margin: 20px auto;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #080d14;
+  display: grid;
+  place-items: center;
+}
+.camera-frame p {
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+}
+.camera-frame video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scaleX(-1);
+}
+.camera-frame video[hidden] {
+  display: none;
+}
+.camera-guide {
+  position: absolute;
+  inset: 8% 15%;
+  border: 2px dashed #f5f3eb99;
+  border-radius: 30% 30% 12% 12%;
+  pointer-events: none;
+}
+.camera-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.camera-controls select,
+.camera-controls button {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 8px 14px;
+  border: 1px solid #64717e;
+  border-radius: 5px;
+  font: inherit;
+  background: #101722;
+  color: #f5f3eb;
+}
+.camera-controls select {
+  flex: 1;
+  min-width: 160px;
+}
+.camera-controls button {
+  background: var(--orange);
+  color: #1b1712;
+  font-weight: 700;
+  cursor: pointer;
+}
+.camera-controls select:focus-visible {
+  outline: 3px solid #f5c76d;
+  outline-offset: 3px;
+}

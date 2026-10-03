@@ -1,5 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { Ring } from '../game/Ring';
+import { CameraPreview } from '../cam/CameraPreview';
 
 export function App() {
   return (
@@ -34,6 +35,7 @@ export function App() {
           </Canvas>
         </div>
       </section>
+      <CameraPreview />
       <footer>Two players · One camera each · No controller required</footer>
     </main>
   );
