@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Landmark, PoseSample } from '@wb/motion';
 import { useCamera } from './useCamera';
+import { useVideoStream } from './useVideoStream';
 import { usePoseLandmarker } from '../motion/usePoseLandmarker';
 import './camera.css';
 
@@ -54,21 +55,7 @@ export function CameraPreview() {
   const [lastPunch, setLastPunch] = useState<{ hand: 'left' | 'right'; at: number } | null>(null);
   const id = useId();
   const { stream, fail } = camera;
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !stream) return;
-    let cancelled = false;
-    video.srcObject = stream;
-    void video.play().catch(() => {
-      if (!cancelled) fail('Camera playback failed. Retry to restart the preview.');
-    });
-    return () => {
-      cancelled = true;
-      video.pause();
-      video.srcObject = null;
-    };
-  }, [stream, fail]);
+  useVideoStream(videoRef, stream, fail);
 
   const pose = usePoseLandmarker(videoRef, canvasRef, stream, showOverlay);
   const diagnostics = pose.diagnostics;

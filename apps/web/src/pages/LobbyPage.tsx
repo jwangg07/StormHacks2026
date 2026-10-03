@@ -26,6 +26,9 @@ export function LobbyPage() {
           <span /> Training floor open
         </div>
         <nav className="top-actions" aria-label="Main navigation">
+          <Link className="avatar-link" to="/practice">
+            First-person practice
+          </Link>
           <Link className="avatar-link" to="/avatar">
             Avatar studio
           </Link>

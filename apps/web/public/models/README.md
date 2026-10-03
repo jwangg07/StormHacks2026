@@ -21,3 +21,17 @@ https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm/vision_wasm_mo
 
 Keep these files and the npm library at the same runtime version when updating.
 Model and WASM assets are copied into Vite's production output automatically.
+
+## Fighter model
+
+`fighter.glb` is exported from the team's `StormHacks_Base.blend` (Rigify humanoid) by
+`tools/blender/export_fighter.py`. The script rebuilds a plain 22-bone deform skeleton
+(`hips`, `upper_arm_L`, `forearm_L`, `hand_L`, …), merges Rigify twist segments into their
+parent bones, and exports only the `Body` mesh with no materials or animations. Re-run it
+after editing the .blend:
+
+```sh
+"/mnt/c/Program Files/Blender Foundation/Blender 5.1/blender.exe" -b "<path to StormHacks_Base.blend>" \
+  --python "$(wslpath -w tools/blender/export_fighter.py)" -- \
+  "$(wslpath -w apps/web/public/models)\\fighter.glb"
+```

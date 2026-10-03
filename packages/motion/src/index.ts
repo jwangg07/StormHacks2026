@@ -12,3 +12,10 @@ export {
 export type { PoseSample } from './pose';
 export { TrackingMonitor } from './tracking';
 export type { TrackingStatus } from './tracking';
+export {
+  ArmPoseEstimator,
+  segmentDirection,
+  UPPER_ARM_SHOULDER_RATIO,
+  FOREARM_SHOULDER_RATIO,
+} from './arms';
+export type { ArmDirections, ArmPose, Direction } from './arms';
