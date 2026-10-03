@@ -1,8 +1,9 @@
 # Camera preview (A — Motion)
 
 `CameraPreview` is mounted below the landing page arena for the initial camera
-spike. It requests video only after **Start camera** is clicked. No microphone,
-recording, inference, or network transfer is attached to the stream.
+spike. It requests video only after **Start camera** is clicked. A worker runs local
+MediaPipe pose inference once the stream starts. No microphone, recording, or
+network transfer of camera data is attached to the stream.
 
 Frontend handoff: mount `<CameraPreview />` on the future setup screen. Unmounting
 it releases every media track. `useCamera()` exposes the stream, status, message,
@@ -28,5 +29,17 @@ Manual device checks:
 7. Disconnect the active camera or revoke permission. Confirm an actionable error
    and successful retry after restoring access.
 
-Live device checks have not been performed by browser automation. Skeletons,
-MediaPipe inference, calibration, and gesture detection are subsequent work.
+8. Confirm the upper-body landmarks align with the mirrored video, including a
+   4:3 camera in the 16:9 preview. L/R are anatomical labels. Turning off **Show
+   landmarks** must hide only the overlay without restarting model inference.
+9. Open developer diagnostics and record measured inference Hz/ms on both demo
+   laptops. Confirm VALID with all required points visible. Hide a wrist to get
+   LOW_CONFIDENCE; leave the frame to get LOST. The overlay holds the last valid
+   pose for at most 200 ms. Input gate pauses after 500 ms of invalid tracking.
+10. Restore tracking for one second, then choose **Confirm tracking**. A camera
+    stop or hidden tab releases inference resources and requires a fresh start.
+11. Block the local model/WASM URLs and retry tracking. Confirm a useful error;
+    camera playback must remain available. Restore the files and retry.
+
+See `../motion/README.md` for the local inference contract. Calibration and action
+detectors are subsequent work; current tracking readiness is not match readiness.

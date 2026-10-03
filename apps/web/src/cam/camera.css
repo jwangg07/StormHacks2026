@@ -41,6 +41,8 @@
   color: var(--muted);
 }
 .camera-frame video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -84,6 +86,49 @@
   cursor: pointer;
 }
 .camera-controls select:focus-visible {
+  outline: 3px solid #f5c76d;
+  outline-offset: 3px;
+}
+.camera-pose {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.pose-status {
+  margin: 20px 0;
+  line-height: 1.5;
+}
+.pose-status > label {
+  display: block;
+  margin: 12px 0;
+}
+.pose-status button {
+  font: inherit;
+  padding: 10px 14px;
+  background: var(--orange);
+  color: #1b1712;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.pose-status summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.pose-status dl {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
+  gap: 8px 16px;
+  font-size: 14px;
+}
+.pose-status dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.pose-status summary:focus-visible,
+.pose-status input:focus-visible {
   outline: 3px solid #f5c76d;
   outline-offset: 3px;
 }

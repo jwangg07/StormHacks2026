@@ -1,10 +1,13 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useCamera } from './useCamera';
+import { usePoseLandmarker } from '../motion/usePoseLandmarker';
 import './camera.css';
 
 export function CameraPreview() {
   const camera = useCamera();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [showOverlay, setShowOverlay] = useState(true);
   const id = useId();
   const { stream, fail } = camera;
 
@@ -22,6 +25,9 @@ export function CameraPreview() {
       video.srcObject = null;
     };
   }, [stream, fail]);
+
+  const pose = usePoseLandmarker(videoRef, canvasRef, stream, showOverlay);
+  const diagnostics = pose.diagnostics;
 
   return (
     <section className="camera-panel" aria-labelledby={`${id}-title`}>
@@ -41,6 +47,7 @@ export function CameraPreview() {
           aria-label="Mirrored local camera preview"
           hidden={!stream}
         />
+        <canvas ref={canvasRef} className="camera-pose" aria-hidden="true" />
         {stream ? (
           <div className="camera-guide" aria-hidden="true" />
         ) : (
@@ -51,6 +58,56 @@ export function CameraPreview() {
           </p>
         )}
       </div>
+      {stream ? (
+        <div className="pose-status">
+          <p role="status" aria-live="polite">
+            {!diagnostics || diagnostics.phase === 'loading'
+              ? (diagnostics?.message ?? 'Loading local pose model…')
+              : diagnostics.phase === 'error'
+                ? diagnostics.message
+                : diagnostics.tracking !== 'VALID'
+                  ? 'Keep your head, shoulders, elbows, and wrists visible in good lighting.'
+                  : diagnostics.pauseRequired
+                    ? 'Pose detected. Hold still briefly, then confirm tracking.'
+                    : 'Tracking ready.'}
+          </p>
+          {diagnostics?.phase === 'error' ? (
+            <button type="button" onClick={pose.retry}>
+              Retry tracking
+            </button>
+          ) : null}
+          {diagnostics?.canResume ? (
+            <button type="button" onClick={pose.confirmTracking}>
+              Confirm tracking
+            </button>
+          ) : null}
+          <label>
+            <input
+              type="checkbox"
+              checked={showOverlay}
+              onChange={(event) => setShowOverlay(event.target.checked)}
+            />{' '}
+            Show landmarks
+          </label>
+          <details>
+            <summary>Developer pose diagnostics</summary>
+            <dl>
+              <dt>Tracking</dt>
+              <dd>{diagnostics?.tracking ?? 'LOST'}</dd>
+              <dt>Input gate</dt>
+              <dd>{diagnostics?.pauseRequired === false ? 'Ready' : 'Paused'}</dd>
+              <dt>Inference rate</dt>
+              <dd>{(diagnostics?.inferenceHz ?? 0).toFixed(1)} Hz (target ≥15)</dd>
+              <dt>Inference duration</dt>
+              <dd>{(diagnostics?.inferenceMs ?? 0).toFixed(1)} ms</dd>
+              <dt>Upper-body visibility</dt>
+              <dd>{Math.round((diagnostics?.confidence ?? 0) * 100)}% (threshold 60%)</dd>
+              <dt>Missing landmarks</dt>
+              <dd>{diagnostics?.missingLandmarks.join(', ') || 'None'}</dd>
+            </dl>
+          </details>
+        </div>
+      ) : null}
       <p className="camera-status" role="status" aria-live="polite">
         {camera.message}
       </p>
@@ -83,7 +140,9 @@ export function CameraPreview() {
           </button>
         )}
       </div>
-      <p className="camera-help">Mirrored preview · No microphone · Video stays on your device</p>
+      <p className="camera-help">
+        Mirrored preview · Local pose processing · No microphone · Video stays on your device
+      </p>
     </section>
   );
 }
