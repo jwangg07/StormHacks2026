@@ -1,0 +1,42 @@
+{
+  "name": "webcamboxer",
+  "version": "0.1.0",
+  "packageManager": "npm@12.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24",
+    "npm": ">=12"
+  },
+  "workspaces": [
+    "apps/web",
+    "apps/api",
+    "packages/core",
+    "packages/motion"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n web,api \"npm:dev:web\" \"npm:dev:api\"",
+    "dev:web": "npm run dev --workspace @wb/web",
+    "dev:api": "npm run dev --workspace @wb/api",
+    "build": "npm run build --workspace @wb/core && npm run build --workspace @wb/motion && npm run build --workspace @wb/api && npm run build --workspace @wb/web",
+    "typecheck": "npm run typecheck --workspace @wb/core && npm run typecheck --workspace @wb/motion && npm run typecheck --workspace @wb/api && npm run typecheck --workspace @wb/web",
+    "lint": "eslint apps packages",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,css,json,html}\" \"packages/**/*.{ts,json}\" \"*.{json,js}\" \"docs/*.md\" README.md",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,css,json,html}\" \"packages/**/*.{ts,json}\" \"*.{json,js}\" \"docs/*.md\" README.md"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "concurrently": "^9.0.0",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.71.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}
