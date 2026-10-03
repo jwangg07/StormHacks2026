@@ -16,7 +16,7 @@
   font-size: 24px;
 }
 .camera-badge {
-  color: var(--orange);
+  color: var(--amber);
   font-size: 13px;
 }
 .camera-help,
@@ -80,13 +80,13 @@
   min-width: 160px;
 }
 .camera-controls button {
-  background: var(--orange);
+  background: var(--amber);
   color: #1b1712;
   font-weight: 700;
   cursor: pointer;
 }
 .camera-controls select:focus-visible {
-  outline: 3px solid #f5c76d;
+  outline: 3px solid var(--amber);
   outline-offset: 3px;
 }
 .camera-pose {
@@ -107,7 +107,7 @@
 .pose-status button {
   font: inherit;
   padding: 10px 14px;
-  background: var(--orange);
+  background: var(--amber);
   color: #1b1712;
   border: 0;
   border-radius: 5px;
@@ -129,6 +129,6 @@
 }
 .pose-status summary:focus-visible,
 .pose-status input:focus-visible {
-  outline: 3px solid #f5c76d;
+  outline: 3px solid var(--amber);
   outline-offset: 3px;
 }

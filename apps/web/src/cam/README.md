@@ -1,14 +1,13 @@
 # Camera preview (A — Motion)
 
-`CameraPreview` is mounted below the landing page arena for the initial camera
-spike. It requests video only after **Start camera** is clicked. A worker runs local
+`CameraPreview` is mounted on `/game`. It requests video only after **Start camera** is clicked. A worker runs local
 MediaPipe pose inference once the stream starts. No microphone, recording, or
 network transfer of camera data is attached to the stream.
 
-Frontend handoff: mount `<CameraPreview />` on the future setup screen. Unmounting
-it releases every media track. `useCamera()` exposes the stream, status, message,
-camera choices, and start/stop methods for later preview or inference integration.
-Mirror only the video element; the source stream is unchanged.
+Unmounting it releases every media track. `useCamera()` exposes the stream, status,
+message, camera choices, and start/stop methods. Mirror only the video element; the
+source stream is unchanged. `/game` also displays a local practice punch cue from
+valid pose history; it does not send gameplay inputs to the server.
 
 Run `npm run dev:web` and open the printed localhost URL in desktop Chrome or
 Edge. A remote deployment needs HTTPS; a plain HTTP LAN address cannot capture.
@@ -41,5 +40,6 @@ Manual device checks:
 11. Block the local model/WASM URLs and retry tracking. Confirm a useful error;
     camera playback must remain available. Restore the files and retry.
 
-See `../motion/README.md` for the local inference contract. Calibration and action
-detectors are subsequent work; current tracking readiness is not match readiness.
+See `../motion/README.md` for the local inference contract. Punch feedback is an
+initial heuristic, not calibrated match input; current tracking readiness is not
+match readiness.
