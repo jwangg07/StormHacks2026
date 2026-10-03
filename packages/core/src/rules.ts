@@ -3,7 +3,13 @@ export const matchConfig = {
   roundMs: 60_000,
   cleanDamage: 8,
   blockedDamage: 2,
+  punchWindupMs: 250,
+  punchActiveMs: 100,
+  punchRecoveryMs: 100,
   attackCooldownMs: 450,
   tickRate: 30,
   snapshotRate: 20,
+  trackingGraceMs: 500,
+  reconnectWindowMs: 10_000,
+  resumeCountdownMs: 3_000,
 } as const;
