@@ -14,6 +14,7 @@ Usage (Windows Blender from WSL):
 """
 
 import sys
+import math
 
 import bpy
 
@@ -118,6 +119,17 @@ for modifier in body.modifiers:
     if modifier.type == "ARMATURE":
         modifier.object = fighter
 
+# The camera-baked skin needs non-overlapping UVs; the source mesh has none.
+bpy.ops.object.select_all(action="DESELECT")
+body.select_set(True)
+bpy.context.view_layer.objects.active = body
+if not body.data.uv_layers:
+    body.data.uv_layers.new(name="UVMap")
+bpy.ops.object.mode_set(mode="EDIT")
+bpy.ops.mesh.select_all(action="SELECT")
+bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.02)
+bpy.ops.object.mode_set(mode="OBJECT")
+
 bpy.ops.object.select_all(action="DESELECT")
 fighter.select_set(True)
 body.select_set(True)
@@ -126,6 +138,7 @@ bpy.ops.export_scene.gltf(
     export_format="GLB",
     use_selection=True,
     export_yup=True,
+    export_texcoords=True,
     export_skins=True,
     export_animations=False,
     export_materials="NONE",

@@ -1,18 +1,22 @@
-import cors from 'cors';
-import express from 'express';
-import { createServer } from 'node:http';
-import { env } from './config/env';
-import { addHealthRoutes } from './http/health';
-import { addSockets } from './net/socket';
+import { createApiServer } from './server';
 
-const app = express();
-app.use(cors({ origin: env.webOrigin }));
-app.use(express.json({ limit: '16kb' }));
-addHealthRoutes(app);
+const runtime = await createApiServer();
+const port = await runtime.start();
+console.log(`WebcamBoxer API listening on ${port}`);
 
-const server = createServer(app);
-addSockets(server, env.webOrigin);
+let shuttingDown = false;
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`WebcamBoxer API received ${signal}; shutting down`);
+  try {
+    await runtime.stop();
+    process.exitCode = 0;
+  } catch {
+    console.error('WebcamBoxer API shutdown failed');
+    process.exitCode = 1;
+  }
+}
 
-server.listen(env.port, '0.0.0.0', () => {
-  console.log(`WebcamBoxer API listening on ${env.port}`);
-});
+process.once('SIGINT', () => void shutdown('SIGINT'));
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
