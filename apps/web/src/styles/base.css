@@ -232,11 +232,49 @@ a {
     600 16px 'IBM Plex Mono',
     monospace;
 }
-.board-footnote {
-  margin: 8px 0 0;
-  color: #888373;
+.corner-board.fighter-card {
+  width: min(520px, 100%);
+  max-height: min(90svh, 620px);
+  overflow-y: auto;
+  scrollbar-color: #806345 #202320;
+}
+.fighter-card-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin: 15px 0 9px;
+}
+.fighter-card-tab {
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid #625846;
+  background: #1e221f;
+  color: #a9a18f;
   font-size: 10px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.fighter-card-tab[aria-selected='true'] {
+  border-color: #ba8750;
+  background: linear-gradient(180deg, #51402e, #332b22);
+  color: #f0d29c;
+  box-shadow: inset 0 -2px #d89a4e;
+}
+.fighter-card-tab:hover {
+  border-color: #d8a75e;
+  color: #ffe1a4;
+}
+.fighter-card .board-subtitle {
+  min-height: 12px;
+}
+.fighter-card .stat-row {
+  min-height: 40px;
+}
+.fighter-card .stat-label {
+  font-size: 12px;
+}
+.fighter-card .stat-row strong {
+  font-size: 14px;
 }
 
 .gym-lobby[data-hover='ring'] {

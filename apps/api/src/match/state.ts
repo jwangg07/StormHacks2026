@@ -200,7 +200,7 @@ export class AuthoritativeMatch {
     if (hand === 'left') attackerStats.leftAttempts++;
     else attackerStats.rightAttempts++;
     if (outcome === 'HIT') attackerStats.cleanHits++;
-    else if (outcome === 'BLOCK') attackerStats.blocks++;
+    else if (outcome === 'BLOCK') defenderStats.blocks++;
     else attackerStats.misses++;
     attackerStats.damageDealt += damage;
     defenderStats.damageReceived += damage;

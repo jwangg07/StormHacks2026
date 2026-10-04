@@ -200,7 +200,7 @@ export function SparringRoomDialog({
             <div className="session-options">
               <button className="session-option" type="button" onClick={onSolo}>
                 <strong>Spar solo</strong>
-                <span>Work the bag at your own pace. No opponent, no clock.</span>
+                <span>Work the bag through rolling 60-second rounds. No opponent.</span>
               </button>
               <button className="session-option" type="button" onClick={() => setSession('friend')}>
                 <strong>Fight a friend</strong>

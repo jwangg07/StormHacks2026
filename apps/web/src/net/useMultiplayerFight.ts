@@ -2,6 +2,7 @@ import type { GameInput, MatchSnapshot, OpponentInputPayload } from '@wb/core';
 import type { MotionFrame } from '@wb/motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MotionControls } from '../motion/useMotionControls';
+import { recordCompletedMultiplayerMatch } from '../state/fighterStats';
 import { useMultiplayer } from './MultiplayerProvider';
 import { usePeerPoseTransport } from './usePeerPoseTransport';
 
@@ -38,6 +39,7 @@ function inputFromMotion(matchId: string, sequence: number, frame: MotionFrame):
 export function useMultiplayerFight(motion: MotionControls) {
   const [matchState, setMatchState] = useState<FightConnectionState | null>(null);
   const { socket, connectionState: lobbyState, assignment } = useMultiplayer();
+  const assignmentRef = useRef(assignment);
   const [snapshot, setSnapshot] = useState<MatchSnapshot | null>(null);
   const [opponentInput, setOpponentInput] = useState<OpponentInputPayload | null>(null);
   const matchId = useRef<string | null>(null);
@@ -54,6 +56,8 @@ export function useMultiplayerFight(motion: MotionControls) {
   }, []);
   const sendPeerPose = usePeerPoseTransport(socket, assignment, receiveOpponentInput);
 
+  assignmentRef.current = assignment;
+
   useEffect(() => {
     socketRef.current = socket;
     socket.on('match.countdown', () => setMatchState('COUNTDOWN'));
@@ -69,6 +73,7 @@ export function useMultiplayerFight(motion: MotionControls) {
       active.current = false;
       setSnapshot(finalSnapshot);
       setMatchState('FINISHED');
+      recordCompletedMultiplayerMatch(finalSnapshot, assignmentRef.current?.seat);
     });
     return () => {
       socket.off('match.countdown');

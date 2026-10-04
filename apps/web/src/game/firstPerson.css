@@ -122,6 +122,27 @@
   text-shadow: 0 1px 3px #000;
   text-transform: uppercase;
 }
+.fp-round-readout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid rgb(183 158 115 / 24%);
+  background: rgb(19 22 20 / 68%);
+  color: #d7a665;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px #000;
+}
+.fp-round-readout i {
+  width: 3px;
+  height: 3px;
+  background: #8f9582;
+  transform: rotate(45deg);
+}
 .fp-setup-toggle {
   justify-self: end;
   min-width: 152px;
@@ -435,165 +456,69 @@
   display: grid;
   overflow-y: auto;
   place-items: center;
-  padding: 24px;
+  /* Top padding keeps the dialog clear of the "Leave the ring" link above it. */
+  padding: 72px 24px 24px;
   background:
     radial-gradient(ellipse at 50% 46%, rgb(15 16 14 / 30%), rgb(8 10 9 / 73%) 75%),
     rgb(10 12 10 / 34%);
   backdrop-filter: blur(2px) saturate(0.74);
   animation: fp-scrim-in 240ms ease-out both;
 }
+/* Calibration covers the HUD, but the player must always be able to leave. */
+.fp-hud.is-calibrating {
+  z-index: 9;
+}
+.fp-hud.is-calibrating > :not(.fp-back) {
+  visibility: hidden;
+}
 .fp-calibration-dialog {
-  position: relative;
-  display: flex;
-  width: min(900px, 100%);
-  min-height: min(600px, calc(100vh - 80px));
-  flex-direction: column;
-  justify-content: center;
-  max-height: calc(100vh - 40px);
+  display: grid;
+  width: min(980px, 100%);
+  max-height: calc(100vh - 96px);
   overflow-y: auto;
-  padding: clamp(19px, 3vw, 30px);
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 1fr);
+  align-items: center;
+  gap: clamp(20px, 3vw, 36px);
+  padding: clamp(18px, 2.6vw, 28px);
   border: 1px solid #8a7552;
-  outline: 1px solid rgb(26 26 22 / 88%);
-  outline-offset: 4px;
-  background:
-    linear-gradient(145deg, rgb(52 51 43 / 98%), rgb(27 31 28 / 99%) 64%),
-    repeating-linear-gradient(0deg, #d4c59a0a 0 1px, transparent 1px 4px);
+  background: linear-gradient(145deg, rgb(52 51 43 / 98%), rgb(27 31 28 / 99%) 64%);
   box-shadow:
     0 18px 60px #000b,
-    inset 0 0 36px #0c0e0c99,
     inset 0 1px #d8c7a522;
   color: #e5dcc7;
   animation: fp-dialog-in 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.fp-calibration-dialog::before,
-.fp-calibration-dialog::after {
-  position: absolute;
-  width: 27px;
-  height: 27px;
-  border-color: #c08b52;
-  border-style: solid;
-  content: '';
-  opacity: 0.72;
-  pointer-events: none;
-}
-.fp-calibration-dialog::before {
-  top: 7px;
-  left: 7px;
-  border-width: 1px 0 0 1px;
-}
-.fp-calibration-dialog::after {
-  right: 7px;
-  bottom: 7px;
-  border-width: 0 1px 1px 0;
-}
-.fp-dialog-topline,
-.fp-dialog-check-heading,
-.fp-dialog-progress > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.fp-dialog-topline {
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgb(199 178 141 / 23%);
-  color: #b59a6d;
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.15em;
-}
-.fp-dialog-topline span:last-child {
-  color: #7e8172;
-}
-.fp-dialog-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-top: 18px;
-}
-.fp-dialog-kicker {
-  margin: 0 0 5px;
-  color: #d3a160;
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-}
-.fp-dialog-title-row h1 {
-  margin: 0;
-  color: #f0e4cc;
-  font:
-    600 clamp(32px, 6vw, 48px)/0.92 'Barlow Condensed',
-    Impact,
-    sans-serif;
-  letter-spacing: 0.025em;
-  text-transform: uppercase;
-  text-shadow: 2px 3px #000;
-}
-.fp-dialog-instruction {
-  min-height: 36px;
-  margin: 12px 0 17px;
-  color: #c7bea9;
-  font-size: 12px;
-  line-height: 1.65;
-}
-.fp-dialog-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(260px, 0.95fr);
-  align-items: center;
-  gap: clamp(17px, 3vw, 29px);
-  margin-top: 15px;
-}
-.fp-dialog-guidance {
-  min-width: 0;
-}
-.fp-dialog-guidance .fp-dialog-instruction {
-  margin: 0 0 16px;
-}
+
+/* Camera: the thing the player is actually adjusting, so it gets the most room. */
 .fp-dialog-camera {
+  position: relative;
   min-width: 0;
-  padding: 9px;
-  border: 1px solid #60523f;
-  background:
-    linear-gradient(145deg, #292c28, #1a1e1c),
-    repeating-linear-gradient(0deg, #d4c59a0a 0 1px, transparent 1px 4px);
-  box-shadow:
-    inset 0 0 19px #0007,
-    0 4px 10px #0005;
-}
-.fp-dialog-camera-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-  color: #c7aa7a;
-  font-size: 7px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-}
-.fp-dialog-camera-heading span:last-child {
-  color: #888371;
+  margin: 0;
 }
 .fp-dialog-camera .fp-camera-frame {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 9;
   border: 1px solid #574b3a;
   background: #151916;
 }
-.fp-dialog-camera .fp-camera-frame video {
-  object-fit: contain;
+.fp-dialog-camera .fp-preview-placeholder {
+  font-size: 11px;
+  letter-spacing: 0.08em;
 }
 .fp-dialog-camera-status {
+  position: absolute;
+  z-index: 2;
+  bottom: 10px;
+  left: 10px;
   display: flex;
-  min-height: 31px;
+  max-width: calc(100% - 52px);
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
-  padding: 0 8px;
+  padding: 6px 10px;
   border: 1px solid #484b42;
-  background: #1c211e;
-  color: #c1b59c;
-  font-size: 7px;
-  letter-spacing: 0.08em;
+  background: rgb(17 20 18 / 88%);
+  color: #e0d6bf;
+  font-size: 11px;
+  line-height: 1.3;
 }
 .fp-dialog-camera-status i {
   width: 7px;
@@ -612,105 +537,119 @@
   background: #91a06d;
   box-shadow: 0 0 0 1px #91a06d;
 }
-.fp-dialog-camera-status span {
-  overflow-wrap: anywhere;
+
+/* Guidance column */
+.fp-dialog-guidance {
+  min-width: 0;
 }
-.fp-dialog-camera-tip {
-  margin: 8px 2px 1px;
-  color: #918b79;
-  font-size: 8px;
-  line-height: 1.5;
+.fp-dialog-kicker {
+  margin: 0 0 6px;
+  color: #d3a160;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.fp-dialog-guidance h1 {
+  margin: 0;
+  color: #f0e4cc;
+  font:
+    700 clamp(34px, 4.6vw, 52px) / 0.95 'Barlow Condensed',
+    Impact,
+    sans-serif;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  text-shadow: 2px 3px #000;
+}
+.fp-dialog-instruction {
+  /* Reserve three lines so the step list doesn't jump as the copy changes. */
+  min-height: 4.8em;
+  max-width: 46ch;
+  margin: 12px 0 16px;
+  color: #c7bea9;
+  font-size: 13px;
+  line-height: 1.6;
 }
 .fp-dialog-progress {
-  margin: 0 0 15px;
-  color: #d5bb8e;
-  font-size: 8px;
-  letter-spacing: 0.1em;
-}
-.fp-dialog-progress strong {
-  color: #f0d39a;
-}
-.fp-dialog-progress progress {
   display: block;
   width: 100%;
-  height: 8px;
-  margin-top: 6px;
+  height: 6px;
+  margin: -4px 0 16px;
   appearance: none;
-  border: 1px solid #5a4d3b;
+  border: 0;
   background: #171b19;
 }
-.fp-dialog-progress progress::-webkit-progress-bar {
+.fp-dialog-progress::-webkit-progress-bar {
   background: #171b19;
 }
-.fp-dialog-progress progress::-webkit-progress-value {
-  background: linear-gradient(90deg, #94633b, #d0a05c);
+.fp-dialog-progress::-webkit-progress-value {
+  background: #c08b52;
 }
-.fp-dialog-progress progress::-moz-progress-bar {
-  background: #c38a4b;
+.fp-dialog-progress::-moz-progress-bar {
+  background: #c08b52;
 }
-.fp-dialog-check-heading {
-  margin-bottom: 7px;
-  color: #b3a384;
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.13em;
-}
-.fp-dialog-check-heading span:last-child {
-  color: #dbb273;
-}
+
+/* The three moves, read like a corner calling combinations. */
 .fp-dialog-checks {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
   margin: 0;
   padding: 0;
+  border-top: 1px solid rgb(199 178 141 / 18%);
   list-style: none;
 }
 .fp-dialog-checks li {
   display: grid;
-  min-width: 0;
-  grid-template-columns: 25px 1fr auto;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 10px;
-  border: 1px solid #4b4d43;
-  background: #1a201d99;
-  color: #cfc5ae;
-  font-size: 9px;
-}
-.fp-dialog-checks li[data-complete='true'] {
-  border-color: #77795d;
-  background: #35392c;
+  grid-template-columns: 26px 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 12px 9px 14px;
+  border-bottom: 1px solid rgb(199 178 141 / 18%);
+  color: #8c8775;
+  font:
+    600 22px / 1.1 'Barlow Condensed',
+    Impact,
+    sans-serif;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  transition:
+    color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
 }
 .fp-dialog-checks li[data-current='true'] {
-  border-color: #a77b4a;
-  box-shadow: inset 2px 0 #c68d56;
+  background: rgb(192 139 82 / 12%);
+  box-shadow: inset 3px 0 #c68d56;
+  color: #f0e4cc;
+}
+.fp-dialog-checks li[data-complete='true'] {
+  color: #b5bd8b;
+}
+.fp-dialog-check-number,
+.fp-dialog-checks small {
+  font:
+    600 11px 'IBM Plex Mono',
+    Consolas,
+    monospace;
+  letter-spacing: 0.06em;
+  text-transform: none;
 }
 .fp-dialog-check-number {
   color: #95714c;
-  font-size: 8px;
 }
-.fp-dialog-checks small {
-  color: #827e6e;
-  font-size: 7px;
-  letter-spacing: 0.08em;
+.fp-dialog-checks li[data-complete='true'] .fp-dialog-check-number {
+  color: inherit;
 }
 .fp-dialog-checks li[data-current='true'] small {
   color: #dfb46f;
 }
-.fp-dialog-checks li[data-complete='true'] small {
-  color: #b5bd8b;
-}
 .fp-dialog-actions {
   display: flex;
-  min-height: 49px;
+  min-height: 46px;
   align-items: center;
-  justify-content: center;
-  margin-top: 15px;
+  margin-top: 18px;
 }
 .fp-dialog-primary {
   width: 100%;
-  min-height: 43px;
+  min-height: 46px;
   border: 1px solid #bb8951;
   background: linear-gradient(#a16d43, #744a32);
   box-shadow:
@@ -718,10 +657,11 @@
     0 3px 0 #171815;
   color: #f4e6c7;
   font:
-    700 10px 'IBM Plex Mono',
+    700 12px 'IBM Plex Mono',
     Consolas,
     monospace;
-  letter-spacing: 0.13em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
   transition:
     filter 130ms ease,
@@ -730,6 +670,10 @@
 .fp-dialog-primary:hover:not(:disabled) {
   filter: brightness(1.18);
   transform: translateY(-1px);
+}
+.fp-dialog-primary:focus-visible {
+  outline: 2px solid #e6ba75;
+  outline-offset: 3px;
 }
 .fp-dialog-primary:disabled {
   border-color: #615b4a;
@@ -740,36 +684,19 @@
 .fp-dialog-wait {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   color: #c4a475;
-  font-size: 8px;
-  letter-spacing: 0.13em;
+  font-size: 12px;
+  letter-spacing: 0.04em;
 }
 .fp-dialog-wait i {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border: 1px solid #c38a4b;
   border-radius: 50%;
   background: #bd8148;
   box-shadow: 0 0 8px #bd814866;
   animation: fp-watch-pulse 1.4s ease-in-out infinite;
-}
-.fp-dialog-footnote {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin: 10px 0 0;
-  color: #807d6e;
-  font-size: 7px;
-  letter-spacing: 0.1em;
-}
-.fp-dialog-footnote i {
-  width: 3px;
-  height: 3px;
-  align-self: center;
-  background: #a6784c;
-  transform: rotate(45deg);
 }
 @keyframes fp-scrim-in {
   from {
@@ -833,21 +760,19 @@
     width: min(390px, calc(100vw - 18px));
   }
   .fp-calibration-scrim {
-    padding: 18px;
+    padding: 58px 12px 12px;
   }
   .fp-calibration-dialog {
-    max-height: calc(100vh - 32px);
-    padding: 19px 17px;
+    max-height: calc(100vh - 70px);
+    padding: 14px;
   }
   .fp-dialog-instruction {
-    margin: 10px 0 13px;
-    font-size: 10px;
+    min-height: 0;
+    margin: 8px 0 14px;
   }
   .fp-dialog-checks li {
-    padding: 8px 7px;
-    grid-template-columns: 19px 1fr auto;
-    gap: 5px;
-    font-size: 8px;
+    padding: 8px 10px;
+    font-size: 20px;
   }
   .fp-floor-mark {
     bottom: 13px;
@@ -857,24 +782,14 @@
 }
 @media (max-width: 760px) {
   .fp-calibration-dialog {
-    min-height: 0;
-    justify-content: flex-start;
-  }
-  .fp-dialog-layout {
     grid-template-columns: minmax(0, 1fr);
-    gap: 15px;
-  }
-  .fp-dialog-camera {
-    grid-row: 1;
-  }
-  .fp-dialog-camera .fp-camera-frame {
-    aspect-ratio: 16 / 9;
+    align-items: start;
+    gap: 16px;
   }
 }
 @media (max-height: 680px) and (min-width: 701px) {
-  .fp-calibration-dialog {
+  .fp-dialog-instruction {
     min-height: 0;
-    justify-content: flex-start;
   }
   .fp-camera {
     top: 62px;
@@ -897,6 +812,7 @@
   .fp-calibration-scrim,
   .fp-calibration-dialog,
   .fp-dialog-primary,
+  .fp-dialog-checks li,
   .fp-dialog-wait i {
     transition: none;
     animation: none;

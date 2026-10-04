@@ -20,12 +20,15 @@ import { publishSkin, useOpponentSkinBlob } from '../net/skinSync';
 import { useMultiplayerFight } from '../net/useMultiplayerFight';
 import { dodgeView, PUNCH_IMPACT_MS } from './boxingAnimation';
 import { useSurface } from './surfaces';
+import { useSoloTraining } from './useSoloTraining';
 import type { PunchCue } from './boxingAnimation';
 import { OpponentFighter } from './OpponentFighter';
 import './firstPerson.css';
 
 const CAMERA_POSITION: [number, number, number] = [0, EYE_HEIGHT, -EYE_FORWARD];
 const CAMERA_ROTATION: [number, number, number] = [-0.2, 0, 0];
+const formatWorkoutClock = (seconds: number) =>
+  `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
 class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -283,6 +286,7 @@ export function FirstPersonScreen() {
   const calibrationOpen = motion.snapshot?.ready !== true;
   useVideoStream(videoRef, stream, fail, calibrationOpen ? 'dialog' : 'ring');
   const fight = useMultiplayerFight(motion);
+  const soloWorkout = useSoloTraining(motion, !fight.assignment);
   const { socket, assignment, leaveFight } = useMultiplayer();
   const opponentSkin = useBlobTexture(useOpponentSkinBlob(socket));
 
@@ -389,13 +393,16 @@ export function FirstPersonScreen() {
         </div>
       ) : null}
 
-      <header className="fp-hud" aria-label="Sparring controls">
+      <header
+        className={`fp-hud${calibrationOpen ? ' is-calibrating' : ''}`}
+        aria-label="Sparring controls"
+      >
         <Link className="fp-back" to="/" onClick={leaveFight}>
           LEAVE THE RING
         </Link>
         <div className="fp-session-display">
           <span className="fp-session-mark">
-            WEBCAM BOXER
+            OBOXLE
             <i /> TEST ENVIRONMENT
           </span>
           <p className="fp-title">
@@ -405,6 +412,13 @@ export function FirstPersonScreen() {
                 ? 'Solo · bag work'
                 : `Multiplayer · ${fight.connectionState.toLowerCase()}`}
           </p>
+          {!fight.assignment && !calibrationOpen ? (
+            <p className="fp-round-readout">
+              ROUND {String(soloWorkout.round).padStart(2, '0')} <i />
+              {soloWorkout.started ? formatWorkoutClock(soloWorkout.secondsLeft) : 'THROW TO START'} <i />
+              {soloWorkout.punches} PUNCHES
+            </p>
+          ) : null}
         </div>
         <button
           className="fp-setup-toggle"
@@ -467,8 +481,8 @@ export function FirstPersonScreen() {
       ) : null}
 
       <div className="fp-floor-mark" aria-hidden="true">
-        <span>WEBCAM BOXER</span>
-        <i /> <span>PRE-ALPHA 2026-10-03</span>
+        <span>OBOXLE</span>
+        <i /> <span>PRE-ALPHA 2026-10-04</span>
       </div>
     </main>
   );

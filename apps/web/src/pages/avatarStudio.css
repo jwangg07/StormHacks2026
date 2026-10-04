@@ -327,14 +327,14 @@
 .avatar-instruction {
   position: absolute;
   z-index: 4;
-  top: 78px;
+  top: 50%;
   left: 50%;
   display: grid;
   justify-items: center;
   gap: 8px;
   width: min(960px, calc(100vw - 48px));
   text-align: center;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   pointer-events: none;
 }
 .avatar-instruction-kicker {
@@ -361,6 +361,18 @@
     0 0 3px #000,
     0 4px 22px rgb(0 0 0 / 85%);
   animation: avatar-instruction-in 260ms ease-out;
+}
+/* Once the scan is done the fighter is the point; let the copy step aside. */
+.avatar-instruction.is-transient > * {
+  animation:
+    avatar-instruction-in 260ms ease-out,
+    avatar-instruction-out 700ms ease-in 3.5s forwards;
+}
+@keyframes avatar-instruction-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
 }
 @keyframes avatar-instruction-in {
   from {
@@ -609,7 +621,7 @@
     width: auto;
   }
   .avatar-instruction {
-    top: 72px;
+    top: 42%;
     width: calc(100vw - 32px);
     gap: 6px;
   }
@@ -682,5 +694,9 @@
   .avatar-instruction-text {
     transition: none;
     animation: none;
+  }
+  /* Still clear the finished-scan copy, just without the fade. */
+  .avatar-instruction.is-transient > * {
+    animation: avatar-instruction-out 1ms linear 4s forwards;
   }
 }

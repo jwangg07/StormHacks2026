@@ -1,5 +1,5 @@
 ﻿import { Canvas, useFrame } from '@react-three/fiber';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Vector3 } from 'three';
 import type { Texture } from 'three';
@@ -7,6 +7,8 @@ import { useSkin } from '../avatar/skinStore';
 import { Ring } from '../game/Ring';
 import { useSurface } from '../game/surfaces';
 import { useMultiplayer } from '../net/MultiplayerProvider';
+import { useFighterStats } from '../state/fighterStats';
+import type { FighterStats, MultiplayerStats, SoloStats } from '../state/fighterStats';
 import { MusicToggle } from '../ui/MusicToggle';
 import { SparringRoomDialog } from '../ui/SparringRoomDialog';
 import { CityWindows } from './CityWindows';
@@ -20,12 +22,62 @@ import {
 } from './LobbyProps';
 import type { CameraShot, StatLine } from './LobbyProps';
 
-const stats: StatLine[] = [
-  { label: 'Record', value: '07 - 03' },
-  { label: 'Clean hits', value: '68%' },
-  { label: 'Blocks', value: '24' },
-  { label: 'Best round', value: '43 sec' },
-];
+const compactCount = (value: number) => {
+  if (value >= 10_000) return `${(value / 1_000).toFixed(0)}k`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+  return String(value);
+};
+
+const hitRate = (stats: MultiplayerStats) =>
+  stats.attempts > 0 ? `${Math.round((stats.cleanHits / stats.attempts) * 100)}%` : '—';
+
+const formatDuration = (milliseconds: number | null) => {
+  if (milliseconds === null) return '—';
+  const seconds = Math.floor(milliseconds / 1_000);
+  return seconds < 60
+    ? `${seconds} sec`
+    : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+};
+
+function billboardStats(stats: FighterStats): StatLine[] {
+  const multi = stats.multiplayer;
+  return [
+    { label: 'Solo punches', value: compactCount(stats.solo.totalPunches) },
+    {
+      label: 'Best 60s',
+      value: stats.solo.completedRounds ? compactCount(stats.solo.bestRoundPunches) : '—',
+    },
+    { label: 'MP record', value: `${multi.wins}-${multi.losses}-${multi.draws}` },
+    { label: 'MP hit rate', value: hitRate(multi) },
+  ];
+}
+
+function soloStatLines(stats: SoloStats): StatLine[] {
+  return [
+    { label: 'Total punches', value: compactCount(stats.totalPunches) },
+    {
+      label: 'Best 60 sec round',
+      value: stats.completedRounds ? `${compactCount(stats.bestRoundPunches)} punches` : '—',
+    },
+    { label: 'Best combo', value: stats.bestCombo ? `${stats.bestCombo} hits` : '—' },
+    { label: 'Rounds completed', value: compactCount(stats.completedRounds) },
+    { label: 'Guard reps', value: compactCount(stats.guardReps) }
+  ];
+}
+
+function multiplayerStatLines(stats: MultiplayerStats): StatLine[] {
+  return [
+    {
+      label: 'Record · W-L-D',
+      value: `${stats.wins}-${stats.losses}-${stats.draws}`,
+    },
+    { label: 'Completed bouts', value: compactCount(stats.matches) },
+    { label: 'Clean hits', value: compactCount(stats.cleanHits) },
+    { label: 'Clean hit rate', value: hitRate(stats) },
+    { label: 'Blocks', value: compactCount(stats.blocks) },
+    { label: 'Fastest win', value: formatDuration(stats.bestWinMs) },
+  ];
+}
 
 const GYM_FOG = { color: '#161817', near: 12, far: 29 };
 
@@ -129,11 +181,12 @@ function LobbyCamera({ focus, onArrive }: { focus: Spot | null; onArrive: (spot:
 interface GymRoomProps {
   hovered: Spot | null;
   skin: Texture | null;
+  stats: StatLine[];
   onHover: (spot: Spot, on: boolean) => void;
   onSelect: (spot: Spot) => void;
 }
 
-function GymRoom({ hovered, skin, onHover, onSelect }: GymRoomProps) {
+function GymRoom({ hovered, skin, stats, onHover, onSelect }: GymRoomProps) {
   const hot = hovered === 'ring';
   const spot = (name: Spot) => ({
     hot: hovered === name,
@@ -240,6 +293,9 @@ function GymRoom({ hovered, skin, onHover, onSelect }: GymRoomProps) {
 
 function FighterCard({ onClose }: { onClose: () => void }) {
   const closeButton = useRef<HTMLButtonElement>(null);
+  const [view, setView] = useState<'solo' | 'multiplayer'>('solo');
+  const stats = useFighterStats();
+  const rows = view === 'solo' ? soloStatLines(stats.solo) : multiplayerStatLines(stats.multiplayer);
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -257,7 +313,7 @@ function FighterCard({ onClose }: { onClose: () => void }) {
   return (
     <div className="card-backdrop" onClick={onClose}>
       <section
-        className="corner-board"
+        className="corner-board fighter-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="stats-title"
@@ -271,17 +327,48 @@ function FighterCard({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <h1 id="stats-title">Your corner</h1>
-        <p className="board-subtitle">LOCAL RECORD · SEASON ZERO</p>
-        <ul className="stats-list">
-          {stats.map((stat, index) => (
-            <li className="stat-row" key={stat.label}>
-              <span className="stat-index">{String(index + 1).padStart(2, '0')}</span>
-              <span className="stat-label">{stat.label}</span>
-              <strong>{stat.value}</strong>
-            </li>
-          ))}
-        </ul>
-        <p className="board-footnote">Sparring data is a placeholder.</p>
+        <div className="fighter-card-tabs" role="tablist" aria-label="Fighter statistics">
+          <button
+            id="solo-stats-tab"
+            className="fighter-card-tab"
+            type="button"
+            role="tab"
+            aria-selected={view === 'solo'}
+            aria-controls="fighter-stats-panel"
+            onClick={() => setView('solo')}
+          >
+            SOLO TRAINING
+          </button>
+          <button
+            id="multi-stats-tab"
+            className="fighter-card-tab"
+            type="button"
+            role="tab"
+            aria-selected={view === 'multiplayer'}
+            aria-controls="fighter-stats-panel"
+            onClick={() => setView('multiplayer')}
+          >
+            MULTIPLAYER
+          </button>
+        </div>
+        <p className="board-subtitle">
+          {view === 'solo' ? 'PUNCHING BAG · 60 SECOND ROUNDS' : 'COMPLETED SERVER-RESOLVED BOUTS'}
+        </p>
+        <div
+          id="fighter-stats-panel"
+          role="tabpanel"
+          aria-labelledby={view === 'solo' ? 'solo-stats-tab' : 'multi-stats-tab'}
+        >
+          <ul className="stats-list">
+            {rows.map((stat, index) => (
+              <li className="stat-row" key={stat.label}>
+                <span className="stat-index">{String(index + 1).padStart(2, '0')}</span>
+                <span className="stat-label">{stat.label}</span>
+                <strong>{stat.value}</strong>
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
     </div>
   );
@@ -294,6 +381,8 @@ export function LobbyPage() {
   // The spot the camera is flying to or parked at; its UI opens once the camera arrives.
   const [focus, setFocus] = useState<Spot | null>(null);
   const skin = useSkin();
+  const fighterStats = useFighterStats();
+  const stats = useMemo(() => billboardStats(fighterStats), [fighterStats]);
   const navigate = useNavigate();
   const { assignment } = useMultiplayer();
 
@@ -343,7 +432,13 @@ export function LobbyPage() {
           shadows
           gl={{ antialias: false, powerPreference: 'high-performance' }}
         >
-          <GymRoom hovered={focus ?? hovered} skin={skin} onHover={hover} onSelect={select} />
+          <GymRoom
+            hovered={focus ?? hovered}
+            skin={skin}
+            stats={stats}
+            onHover={hover}
+            onSelect={select}
+          />
           <LobbyCamera focus={focus} onArrive={open} />
         </Canvas>
       </div>
@@ -376,7 +471,7 @@ export function LobbyPage() {
 
       <div className="gym-floor-label" aria-hidden="true">
         <span>ROUND 01</span>
-        <i /> <span>WEBCAM BOXER</span>
+        <i /> <span>OBOXLE</span>
       </div>
     </main>
   );
