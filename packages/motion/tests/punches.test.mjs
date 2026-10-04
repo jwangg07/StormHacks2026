@@ -9,6 +9,7 @@ const point = (x, y, z = 0) => ({ x, y, z, visibility: 1 });
 function features(timestamp, left = {}) {
   const arm = {
     wrist: point(0.65, 0.3),
+    shoulder: point(0.5, 0),
     elbowAngle: 95,
     imageElbowAngle: 95,
     projectedForearm: 0.6,
@@ -19,7 +20,7 @@ function features(timestamp, left = {}) {
     depthReliable: false,
   };
   return {
-    version: 2,
+    version: 3,
     timestamp,
     confidence: 1,
     head: point(0, -0.9),
@@ -27,7 +28,10 @@ function features(timestamp, left = {}) {
     headDrop: 0,
     shoulderDrop: 0,
     neutral: false,
-    arms: { left: { ...arm, ...left }, right: { ...arm, wrist: point(-0.65, 0.3) } },
+    arms: {
+      left: { ...arm, ...left },
+      right: { ...arm, wrist: point(-0.65, 0.3), shoulder: point(-0.5, 0) },
+    },
   };
 }
 const punch = {

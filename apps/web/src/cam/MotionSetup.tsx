@@ -8,8 +8,8 @@ const LABELS = { leftPunch: 'Left punch', rightPunch: 'Right punch', guard: 'Gua
 const PUNCH_STATUS = {
   'return-to-rest': 'Return to rest or face-level guard',
   cooldown: 'Shared punch cooldown',
-  'need-extension': 'Waiting for elbow extension',
-  'need-motion': 'Extension seen; waiting for outward motion',
+  'need-extension': 'Waiting for a punch or arm swing',
+  'need-motion': 'Gesture seen; waiting for sufficient motion',
   detected: 'Punch recognized',
 };
 export function MotionSetup({
@@ -97,9 +97,10 @@ export function MotionSetup({
             <div key={hand}>
               <dt>{hand === 'left' ? 'Left punch' : 'Right punch'}</dt>
               <dd>{status ? PUNCH_STATUS[status.punches[hand].status] : 'Calibrate first'}</dd>
-              <dt>Window extension / forward speed</dt>
+              <dt>Extension / swing arc / forward speed</dt>
               <dd>
                 {(status?.punches[hand].extension ?? 0).toFixed(0)}° /{' '}
+                {(status?.punches[hand].swingArc ?? 0).toFixed(0)}° /{' '}
                 {(status?.punches[hand].forwardSpeed ?? 0).toFixed(2)} shoulder widths/s
               </dd>
             </div>

@@ -37,6 +37,7 @@ function calibrate(calibration = new Calibration()) {
 function features(timestamp, changes = {}) {
   const arm = {
     wrist: point(0.65, 0.3),
+    shoulder: point(0.5, 0),
     elbowAngle: 60,
     imageElbowAngle: 60,
     projectedForearm: 0.6,
@@ -47,7 +48,7 @@ function features(timestamp, changes = {}) {
     depthReliable: false,
   };
   return {
-    version: 2,
+    version: 3,
     timestamp,
     confidence: 1,
     head: point(0, -0.9),
@@ -66,6 +67,7 @@ function features(timestamp, changes = {}) {
       right: {
         ...arm,
         wrist: point(-0.65, 0.3),
+        shoulder: point(-0.5, 0),
         ...changes.right,
         imageElbowAngle:
           changes.right?.imageElbowAngle ?? changes.right?.elbowAngle ?? arm.elbowAngle,

@@ -66,3 +66,16 @@ checks succeeded; after Ready, left and right each counted once even when held
 extended for 1.2 seconds. No page exceptions occurred. The per-hand diagnostics
 were visually inspected. This verifies the UI/control wiring, not live tracking
 accuracy; actual teammate/device trials remain required.
+
+`packages/motion/tests/swings.test.mjs` covers bent-arm wide/diagonal swings for
+both hands, curved landmark trajectories through calibration/normalization at
+15 Hz, one-shot holds, fresh rearm history, and rejection of slow motions, jitter,
+retractions, and guard raising/release. Swing gestures emit the existing left/right
+punch action rather than adding a new combat attack type.
+
+A separate Chrome worker-boundary replay used curved bent-arm trajectories with
+constant elbow angle for the two calibration punches. After Ready, each wider
+swing counted once despite a one-second hold. Guard entry incremented only the
+guard count, and guard release added no punches. The swing-arc diagnostics were
+visually inspected; no page exceptions occurred. This is synthetic verification,
+not a claim that every real-world swing will be recognized.

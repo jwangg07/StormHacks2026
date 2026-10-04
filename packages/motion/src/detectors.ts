@@ -1,6 +1,6 @@
-import type { NormalizedFeatures } from './normalize';
+import type { ArmFeatures, NormalizedFeatures } from './normalize';
 import type { Hand, MotionFrame } from './types';
-import { distance2 } from './geometry';
+import { clamp, distance2 } from './geometry';
 
 export const PUNCH_COOLDOWN_MS = 450;
 export interface PunchDiagnostic {
@@ -8,16 +8,29 @@ export interface PunchDiagnostic {
   extension: number;
   imageSpeed: number;
   forwardSpeed: number;
+  swingArc: number;
 }
 const emptyDiagnostic = (): PunchDiagnostic => ({
   status: 'return-to-rest',
   extension: 0,
   imageSpeed: 0,
   forwardSpeed: 0,
+  swingArc: 0,
 });
+function swingArc(before: ArmFeatures, after: ArmFeatures) {
+  const ax = before.wrist.x - before.shoulder.x,
+    ay = before.wrist.y - before.shoulder.y;
+  const bx = after.wrist.x - after.shoulder.x,
+    by = after.wrist.y - after.shoulder.y;
+  const lengths = Math.hypot(ax, ay) * Math.hypot(bx, by);
+  return lengths < 1e-6
+    ? 0
+    : (Math.acos(clamp((ax * bx + ay * by) / lengths, -1, 1)) * 180) / Math.PI;
+}
 export class ActionDetector {
   private history: NormalizedFeatures[] = [];
   private armed: Record<Hand, boolean> = { left: false, right: false };
+  private armedAt: Record<Hand, number> = { left: Infinity, right: Infinity };
   private punchAt = -Infinity;
   private guard = false;
   private guardEnter: number | null = null;
@@ -44,7 +57,10 @@ export class ActionDetector {
       const arm = features.arms[hand];
       const atRest =
         arm.restDistance < 0.65 || distance2(arm.wrist, features.head) <= 0.8 * this.sensitivity;
-      if (arm.elbowAngle < 140 && atRest) this.armed[hand] = true;
+      if (!this.armed[hand] && arm.elbowAngle < 140 && atRest) {
+        this.armed[hand] = true;
+        this.armedAt[hand] = now;
+      }
       this.punches[hand] = {
         ...emptyDiagnostic(),
         status:
@@ -64,7 +80,7 @@ export class ActionDetector {
         for (const before of this.history) {
           const elapsed = now - before.timestamp,
             oldArm = before.arms[hand];
-          if (elapsed < 50 || elapsed > 250) continue;
+          if (elapsed < 50 || elapsed > 250 || before.timestamp < this.armedAt[hand]) continue;
           const sameWorld = arm.depthReliable && oldArm.depthReliable;
           const imageExtension =
             oldArm.imageElbowAngle <= 145 ? arm.imageElbowAngle - oldArm.imageElbowAngle : 0;
@@ -76,13 +92,23 @@ export class ActionDetector {
           const speed = (distance2(arm.wrist, oldArm.wrist) * 1000) / elapsed;
           const forwardTravel = sameWorld ? oldArm.wrist.z - arm.wrist.z : 0;
           const forwardSpeed = Math.max(0, (forwardTravel * 1000) / elapsed);
+          const arc = swingArc(oldArm, arm);
           const diagnostic = this.punches[hand];
           diagnostic.extension = Math.max(diagnostic.extension, extension);
           diagnostic.imageSpeed = Math.max(diagnostic.imageSpeed, speed);
           diagnostic.forwardSpeed = Math.max(diagnostic.forwardSpeed, forwardSpeed);
-          if (extension < 25 / this.sensitivity) continue;
-          diagnostic.status = 'need-motion';
-          const imageMotion = speed > 1.5 / this.sensitivity && arm.reach > oldArm.reach + 0.12;
+          diagnostic.swingArc = Math.max(diagnostic.swingArc, arc);
+          const extending = extension >= 25 / this.sensitivity;
+          const returningToRest =
+            arm.restDistance < 0.3 &&
+            oldArm.restDistance > arm.restDistance + 0.15 &&
+            (sameWorld ? arm.elbowAngle : arm.imageElbowAngle) < 145;
+          if (extending || arc >= 35 / this.sensitivity) diagnostic.status = 'need-motion';
+          const imageMotion =
+            !returningToRest &&
+            extending &&
+            speed > 1.5 / this.sensitivity &&
+            arm.reach > oldArm.reach + 0.12;
           // A forward punch may shrink in 2D. Require independent image forearm
           // foreshortening PLUS rising elbow extension and outward world reach;
           // a depth spike or body lean cannot trigger an attack by itself.
@@ -95,10 +121,38 @@ export class ActionDetector {
             oldArm.worldReach !== undefined &&
             arm.worldReach > oldArm.worldReach + 0.12 &&
             oldArm.projectedForearm - arm.projectedForearm >= 0.12 / this.sensitivity;
-          if (imageMotion || forwardMotion)
+          const oldAngle = sameWorld ? oldArm.elbowAngle : oldArm.imageElbowAngle;
+          const angle = sameWorld ? arm.elbowAngle : arm.imageElbowAngle;
+          const travel = distance2(arm.wrist, oldArm.wrist);
+          const dx = Math.abs(arm.wrist.x - oldArm.wrist.x),
+            dy = Math.abs(arm.wrist.y - oldArm.wrist.y);
+          const nearFace = distance2(arm.wrist, features.head) <= 0.8 * this.sensitivity;
+          const radial =
+            sameWorld && arm.worldReach !== undefined && oldArm.worldReach !== undefined
+              ? arm.worldReach >= oldArm.worldReach - 0.1 && arm.worldReach >= 0.65
+              : arm.reach >= oldArm.reach - 0.1 && arm.reach >= 0.5;
+          // Wide bent-arm sweeps need a substantial arc and travel, not elbow
+          // opening. Reject ordinary vertical guard raises and arm retractions.
+          const swinging =
+            !returningToRest &&
+            oldAngle >= 20 &&
+            oldAngle <= 145 &&
+            angle >= 20 &&
+            angle <= 155 &&
+            angle >= oldAngle - 20 &&
+            radial &&
+            arc >= 35 / this.sensitivity &&
+            travel >= 0.45 / this.sensitivity &&
+            speed > 2 / this.sensitivity &&
+            (!nearFace || (dx >= 0.45 / this.sensitivity && dx > dy * 1.25));
+          if (imageMotion || forwardMotion || swinging)
             bestScore = Math.max(
               bestScore,
-              extension * (imageMotion ? speed : forwardSpeed) * features.confidence,
+              Math.max(
+                imageMotion ? extension * speed : 0,
+                forwardMotion ? extension * forwardSpeed : 0,
+                swinging ? arc * speed * 0.8 : 0,
+              ) * features.confidence,
             );
         }
         if (bestScore > 0) candidates.push({ hand, score: bestScore });
@@ -182,6 +236,7 @@ export class ActionDetector {
   invalidate() {
     this.history = [];
     this.armed = { left: false, right: false };
+    this.armedAt = { left: Infinity, right: Infinity };
     this.guard = false;
     this.guardEnter = null;
     this.guardExit = null;

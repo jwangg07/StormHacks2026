@@ -50,7 +50,7 @@ quiet neutral stance after setup; actions never update it. Velocities use actual
 sample timestamps. Adaptive pose smoothing damps rest jitter, follows fast arm
 motion, filters depth more strongly, and resets across long gaps.
 
-Punches require wrist motion and elbow extension within 250 ms. Depth can support
+Straight punches require wrist motion and elbow extension within 250 ms. Depth can support
 evidence but never trigger an attack alone. Image-plane punches require projected
 speed and outward reach. Front-camera punches instead require consistent estimated
 3D elbow extension and outward reach, forward travel/speed, and independently
@@ -58,6 +58,14 @@ visible forearm foreshortening. There is no mandatory 150-degree elbow lockout.
 Image elbow evidence remains continuous across world-landmark dropouts; credible
 world angles prevent a retracting foreshortened arm being classified as a punch.
 Both calibrated chest rest and a bent face-level guard can rearm a hand.
+A fast bent-arm swing can also emit the existing left/right punch action without
+elbow opening: at least 35 degrees of shoulder-relative wrist arc, 0.45 shoulder
+widths of travel, and 2 shoulder widths/s within 250 ms at default sensitivity.
+It requires maintained reach rather than arm retraction. Vertical guard raises
+ending near the face and motion back into calibrated rest are rejected. Rearming
+starts a fresh per-hand detection window so the return stroke cannot replay an
+old candidate. These wider/diagonal gestures use the same canonical game attacks;
+they do not introduce separate hook damage, hitboxes, or packet types.
 A shared 450 ms cooldown, per-hand
 rest rearm, and deterministic strongest/left-tie selection prevent repeat events.
 Guard enters after 100 ms and exits after 150 ms. Duck needs both head and shoulder
@@ -75,7 +83,7 @@ server remains responsible for match readiness, pause/resume, and accepted attac
 Movement diagnostics include per-hand detector status, best recent extension,
 image speed, and forward speed, so a missed candidate can be distinguished from
 cooldown, lack of rearm, inadequate extension/motion, and tracking loss. These
-features and model depth stay local. Normalized feature contract version is 2;
+features and model depth stay local. Normalized feature contract version is 3;
 the `MotionFrame` control contract is unchanged.
 
 Target: >=15 inference samples/s on both intended demo laptops, measured alongside

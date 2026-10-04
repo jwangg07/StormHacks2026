@@ -11,9 +11,10 @@ import {
   reliableWorldArm,
 } from './geometry';
 
-export const MOTION_FEATURE_VERSION = 2;
+export const MOTION_FEATURE_VERSION = 3;
 export interface ArmFeatures {
   wrist: Landmark;
+  shoulder: Landmark;
   elbowAngle: number;
   imageElbowAngle: number;
   projectedForearm: number;
@@ -122,6 +123,7 @@ export class FeatureNormalizer {
       const shoulder = relative(project(points[`${hand}Shoulder`]));
       arms[hand] = {
         wrist,
+        shoulder,
         elbowAngle: smoothedAngle,
         imageElbowAngle,
         projectedForearm,
