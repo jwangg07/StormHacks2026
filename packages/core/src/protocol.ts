@@ -51,8 +51,17 @@ export const controlSchema = gameInputSchema;
 export const readySchema = z.object({ ready: z.boolean().default(true) }).strict();
 export const calibratedSchema = z.object({ calibrated: z.boolean() }).strict();
 export const trackingUpdateSchema = z.object({ tracking: trackingSchema }).strict();
-export const inviteAcceptSchema = z.object({ code: z.string().length(6) }).strict();
+export const inviteAcceptSchema = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/),
+  })
+  .strict();
 export const inviteActionSchema = z.object({ inviteId: z.string().min(1).max(64) }).strict();
+export const inviteCreateSchema = z.object({}).strict();
 export const sessionResumeSchema = z
   .object({ sessionId: z.string().min(1).max(64), reconnectToken: z.string().min(32).max(128) })
   .strict();
@@ -63,6 +72,8 @@ export type RoomPhase = z.infer<typeof roomPhaseSchema>;
 export type MatchPhase = z.infer<typeof matchPhaseSchema>;
 export type GameInput = z.infer<typeof gameInputSchema>;
 export type ControlInput = GameInput;
+export type InviteAccept = z.infer<typeof inviteAcceptSchema>;
+export type InviteAction = z.infer<typeof inviteActionSchema>;
 export type Hand = 'left' | 'right';
 export interface ServerErrorPayload {
   code: string;

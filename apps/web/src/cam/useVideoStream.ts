@@ -6,6 +6,7 @@ export function useVideoStream(
   videoRef: RefObject<HTMLVideoElement | null>,
   stream: MediaStream | null,
   fail: (reason: string) => void,
+  previewTarget?: string,
 ) {
   useEffect(() => {
     const video = videoRef.current;
@@ -20,5 +21,5 @@ export function useVideoStream(
       video.pause();
       video.srcObject = null;
     };
-  }, [videoRef, stream, fail]);
+  }, [videoRef, stream, fail, previewTarget]);
 }

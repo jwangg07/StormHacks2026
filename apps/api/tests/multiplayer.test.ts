@@ -31,7 +31,14 @@ class FakeSocket {
   }
 
   messages(event: string): unknown[] {
-    return this.outbound.filter((message) => message.event === event).map((message) => message.payload);
+    return this.outbound
+      .filter((message) => message.event === event)
+      .map((message) => message.payload);
+  }
+
+  disconnect(): void {
+    this.connected = false;
+    this.handlers.get('disconnect')?.();
   }
 }
 
@@ -122,5 +129,145 @@ describe('minimal two-player flow', () => {
 
     coordinator.close();
     vi.useRealTimers();
+  });
+});
+
+function coordinatorWith(...sockets: FakeSocket[]) {
+  const io = new FakeIo();
+  io.sockets.push(...sockets);
+  const matchOptions: MatchRuntimeOptions[] = [];
+  const coordinator = new MultiplayerCoordinator(io as never, (options: MatchRuntimeOptions) => {
+    matchOptions.push(options);
+    return new AuthoritativeMatch(options, persistence);
+  });
+  for (const socket of sockets) coordinator.attach(socket as never);
+  return { coordinator, matchOptions };
+}
+
+function createdInvite(socket: FakeSocket) {
+  socket.clientEmit('invite.create', {});
+  return socket.messages('invite.created').at(-1) as {
+    inviteId: string;
+    code: string;
+    expiresAt: number;
+  };
+}
+
+function lastError(socket: FakeSocket) {
+  return socket.messages('error').at(-1) as { code: string };
+}
+
+describe('invite matchmaking', () => {
+  it('rejects self-acceptance', () => {
+    const creator = new FakeSocket('creator');
+    const { coordinator } = coordinatorWith(creator);
+    const invite = createdInvite(creator);
+    creator.clientEmit('invite.accept', { code: invite.code });
+    expect(lastError(creator).code).toBe('INVITE_SELF_ACCEPT');
+    expect(creator.messages('matchmaking.matched')).toHaveLength(0);
+    coordinator.close();
+  });
+
+  it('rejects invalid and expired codes with structured errors', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(20_000);
+    const creator = new FakeSocket('creator');
+    const acceptor = new FakeSocket('acceptor');
+    const { coordinator } = coordinatorWith(creator, acceptor);
+    acceptor.clientEmit('invite.accept', { code: 'ABC234' });
+    expect(lastError(acceptor).code).toBe('INVITE_NOT_FOUND');
+
+    const invite = createdInvite(creator);
+    vi.setSystemTime(invite.expiresAt);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(creator.messages('invite.expired')).toContainEqual({ inviteId: invite.inviteId });
+    acceptor.clientEmit('invite.accept', { code: invite.code });
+    expect(lastError(acceptor).code).toBe('INVITE_EXPIRED');
+    coordinator.close();
+    vi.useRealTimers();
+  });
+
+  it('consumes an invite once and gives both players the same match with opposite seats', () => {
+    const creator = new FakeSocket('creator');
+    const acceptor = new FakeSocket('acceptor');
+    const third = new FakeSocket('third');
+    const { coordinator, matchOptions } = coordinatorWith(creator, acceptor, third);
+    const invite = createdInvite(creator);
+    acceptor.clientEmit('invite.accept', { code: invite.code });
+
+    const creatorMatch = creator.messages('matchmaking.matched').at(-1) as {
+      roomId: string;
+      matchId: string;
+      seat: string;
+    };
+    const acceptorMatch = acceptor.messages('matchmaking.matched').at(-1) as typeof creatorMatch;
+    expect(creatorMatch.matchId).toBe(acceptorMatch.matchId);
+    expect(creatorMatch.roomId).toBe(acceptorMatch.roomId);
+    expect([creatorMatch.seat, acceptorMatch.seat]).toEqual(['A', 'B']);
+    expect(matchOptions.at(-1)?.matchType).toBe('INVITE');
+
+    third.clientEmit('invite.accept', { code: invite.code });
+    expect(lastError(third).code).toBe('INVITE_ALREADY_USED');
+    expect(third.messages('matchmaking.matched')).toHaveLength(0);
+    coordinator.close();
+  });
+
+  it('removes creator invites on disconnect and reports the reason', () => {
+    const creator = new FakeSocket('creator');
+    const acceptor = new FakeSocket('acceptor');
+    const { coordinator } = coordinatorWith(creator, acceptor);
+    const invite = createdInvite(creator);
+    creator.disconnect();
+    acceptor.clientEmit('invite.accept', { code: invite.code });
+    expect(lastError(acceptor).code).toBe('CREATOR_DISCONNECTED');
+    coordinator.close();
+  });
+
+  it('clears the remaining player assignment when an active room is abandoned', () => {
+    const a = new FakeSocket('a');
+    const b = new FakeSocket('b');
+    const c = new FakeSocket('c');
+    const { coordinator } = coordinatorWith(a, b, c);
+    a.clientEmit('matchmaking.join', {});
+    b.clientEmit('matchmaking.join', {});
+    a.disconnect();
+
+    b.clientEmit('matchmaking.join', {});
+    c.clientEmit('matchmaking.join', {});
+    expect(b.messages('matchmaking.matched')).toHaveLength(2);
+    expect(c.messages('matchmaking.matched')).toHaveLength(1);
+    coordinator.close();
+  });
+
+  it('lets the creator decline an invite', () => {
+    const creator = new FakeSocket('creator');
+    const acceptor = new FakeSocket('acceptor');
+    const { coordinator } = coordinatorWith(creator, acceptor);
+    const invite = createdInvite(creator);
+    creator.clientEmit('invite.decline', { inviteId: invite.inviteId });
+    expect(creator.messages('invite.declined')).toContainEqual({ inviteId: invite.inviteId });
+    acceptor.clientEmit('invite.accept', { code: invite.code });
+    expect(lastError(acceptor).code).toBe('INVITE_ALREADY_USED');
+    coordinator.close();
+  });
+
+  it('uses the same room factory contract for random and invite matches', () => {
+    const randomA = new FakeSocket('random-a');
+    const randomB = new FakeSocket('random-b');
+    const inviteA = new FakeSocket('invite-a');
+    const inviteB = new FakeSocket('invite-b');
+    const { coordinator, matchOptions } = coordinatorWith(randomA, randomB, inviteA, inviteB);
+    randomA.clientEmit('matchmaking.join', {});
+    randomB.clientEmit('matchmaking.join', {});
+    const invite = createdInvite(inviteA);
+    inviteB.clientEmit('invite.accept', { code: invite.code });
+
+    expect(matchOptions.map(({ matchType }) => matchType)).toEqual(['RANDOM', 'INVITE']);
+    for (const options of matchOptions) {
+      expect(options.roomId).toEqual(expect.any(String));
+      expect(options.playerASessionId).toEqual(expect.any(String));
+      expect(options.playerBSessionId).toEqual(expect.any(String));
+    }
+    coordinator.close();
   });
 });
