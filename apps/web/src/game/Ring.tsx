@@ -1,4 +1,4 @@
-import { Suspense, useRef } from 'react';
+﻿import { Suspense, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group, MeshStandardMaterial, Texture } from 'three';
 import type { Seat } from '@wb/core';
@@ -18,12 +18,17 @@ function Fighter({ x, glove, skin }: { x: number; glove: string; skin: Texture |
   const boxer = useRef<Group>(null);
 
   useFrame(({ clock }) => {
-    if (boxer.current) boxer.current.position.y = MAT_Y + (1 + Math.sin(clock.elapsedTime * 2.1 + x)) * 0.0175;
+    if (boxer.current)
+      boxer.current.position.y = MAT_Y + (1 + Math.sin(clock.elapsedTime * 2.1 + x)) * 0.0175;
   });
 
   // Player A (left, x < 0) faces +x; player B faces -x.
   return (
-    <group ref={boxer} position={[x, MAT_Y, 0]} rotation={[0, x < 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+    <group
+      ref={boxer}
+      position={[x, MAT_Y, 0]}
+      rotation={[0, x < 0 ? Math.PI / 2 : -Math.PI / 2, 0]}
+    >
       <FighterModel skin={skin} pose="guard" glove={glove} scale={FIGHTER_SCALE} />
     </group>
   );
@@ -44,15 +49,15 @@ export function Ring({ active = false, skins = {} }: RingProps) {
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.22, 0]} receiveShadow>
         <planeGeometry args={[24, 16]} />
-        <meshStandardMaterial color="#17212a" roughness={0.94} />
+        <meshStandardMaterial color="#282a26" roughness={1} flatShading />
       </mesh>
       <mesh position={[0, -0.04, 0]} receiveShadow>
         <boxGeometry args={[8.3, 0.36, 5.4]} />
-        <meshStandardMaterial color="#293541" roughness={0.8} />
+        <meshStandardMaterial color="#403e37" roughness={0.97} flatShading />
       </mesh>
       <mesh position={[0, 0.15, 0]} receiveShadow>
         <boxGeometry args={[7.8, 0.08, 4.9]} />
-        <meshStandardMaterial color={active ? '#b7c2bf' : '#929e9e'} roughness={0.9} />
+        <meshStandardMaterial color={active ? '#aaa28e' : '#827e70'} roughness={1} flatShading />
       </mesh>
       <Suspense fallback={null}>
         {(['A', 'B'] as const).map((seat) => (
@@ -68,7 +73,7 @@ export function Ring({ active = false, skins = {} }: RingProps) {
         [-1, 1].map((z) => (
           <mesh key={`post-${x}-${z}`} position={[x * 4, 0.82, z * 2.5]} castShadow>
             <boxGeometry args={[0.13, 1.65, 0.13]} />
-            <meshStandardMaterial color="#b7b9b2" metalness={0.4} roughness={0.42} />
+            <meshStandardMaterial color="#77766c" metalness={0.18} roughness={0.82} flatShading />
           </mesh>
         )),
       )}
@@ -79,7 +84,7 @@ export function Ring({ active = false, skins = {} }: RingProps) {
               <boxGeometry args={[8, 0.035, 0.035]} />
               <meshStandardMaterial
                 ref={ropeMaterial}
-                color="#e5e4dc"
+                color="#c9c0a9"
                 emissive="#f2a451"
                 emissiveIntensity={0.05}
               />
@@ -88,7 +93,7 @@ export function Ring({ active = false, skins = {} }: RingProps) {
           {[-1, 1].map((x) => (
             <mesh key={`short-${x}`} position={[x * 4, y, 0]}>
               <boxGeometry args={[0.035, 0.035, 5]} />
-              <meshStandardMaterial color="#e5e4dc" emissive="#f2a451" emissiveIntensity={0.05} />
+              <meshStandardMaterial color="#c9c0a9" emissive="#d89a4e" emissiveIntensity={0.05} />
             </mesh>
           ))}
         </group>

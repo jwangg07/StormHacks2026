@@ -25,8 +25,15 @@ export function MusicToggle() {
   return (
     <>
       <audio ref={audio} src="/main-menu.mp3" loop preload="none" />
-      <button className="music-toggle" type="button" onClick={toggleMusic} aria-pressed={playing}>
-        <span aria-hidden="true">♫</span> Music {playing ? 'on' : 'off'}
+      <button
+        className="music-toggle"
+        type="button"
+        onClick={toggleMusic}
+        aria-pressed={playing}
+        aria-label={playing ? 'Turn music off' : 'Turn music on'}
+        title={playing ? 'Turn music off' : 'Turn music on'}
+      >
+        <span aria-hidden="true">&#9834;</span>
       </button>
     </>
   );
