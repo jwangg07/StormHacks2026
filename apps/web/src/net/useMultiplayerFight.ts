@@ -6,14 +6,7 @@ import { useMultiplayer } from './MultiplayerProvider';
 import { usePeerPoseTransport } from './usePeerPoseTransport';
 
 export type FightConnectionState =
-  | 'CONNECTING'
-  | 'SEARCHING'
-  | 'CALIBRATING'
-  | 'READY'
-  | 'COUNTDOWN'
-  | 'FIGHTING'
-  | 'FINISHED'
-  | 'ERROR';
+  'CONNECTING' | 'SOLO' | 'CALIBRATING' | 'READY' | 'COUNTDOWN' | 'FIGHTING' | 'FINISHED' | 'ERROR';
 
 function inputFromMotion(matchId: string, sequence: number, frame: MotionFrame): GameInput {
   const clamp = (value: number) => Math.max(-2, Math.min(2, value));
@@ -44,7 +37,7 @@ function inputFromMotion(matchId: string, sequence: number, frame: MotionFrame):
 
 export function useMultiplayerFight(motion: MotionControls) {
   const [matchState, setMatchState] = useState<FightConnectionState | null>(null);
-  const { socket, connectionState: lobbyState, assignment, joinRandom } = useMultiplayer();
+  const { socket, connectionState: lobbyState, assignment } = useMultiplayer();
   const [snapshot, setSnapshot] = useState<MatchSnapshot | null>(null);
   const [opponentInput, setOpponentInput] = useState<OpponentInputPayload | null>(null);
   const matchId = useRef<string | null>(null);
@@ -89,15 +82,13 @@ export function useMultiplayerFight(motion: MotionControls) {
     };
   }, [receiveOpponentInput, socket]);
 
+  // Entering the ring without a friend-fight assignment is solo bag work, so no match to join.
   useEffect(() => {
-    if (!assignment) {
-      joinRandom();
-      return;
-    }
+    if (!assignment) return;
     matchId.current = assignment.matchId;
     sequence.current = 0;
     latestOpponentSequence.current = -1;
-  }, [assignment, joinRandom]);
+  }, [assignment]);
 
   const calibrated = motion.snapshot?.calibration.phase === 'ready';
   const ready = motion.snapshot?.ready === true;
@@ -138,7 +129,7 @@ export function useMultiplayerFight(motion: MotionControls) {
     (lobbyState === 'ERROR'
       ? 'ERROR'
       : !assignment
-        ? 'SEARCHING'
+        ? 'SOLO'
         : calibrated && ready
           ? 'READY'
           : 'CALIBRATING');

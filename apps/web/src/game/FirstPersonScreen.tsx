@@ -399,7 +399,9 @@ export function FirstPersonScreen() {
           <p className="fp-title">
             {fight.connectionState === 'FIGHTING'
               ? `Fight · ${fight.snapshot?.players.A.hp ?? 100}–${fight.snapshot?.players.B.hp ?? 100}`
-              : `Multiplayer · ${fight.connectionState.toLowerCase()}`}
+              : fight.connectionState === 'SOLO'
+                ? 'Solo · bag work'
+                : `Multiplayer · ${fight.connectionState.toLowerCase()}`}
           </p>
         </div>
         <button

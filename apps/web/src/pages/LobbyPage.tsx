@@ -7,8 +7,8 @@ import { useSkin } from '../avatar/skinStore';
 import { Ring } from '../game/Ring';
 import { useSurface } from '../game/surfaces';
 import { useMultiplayer } from '../net/MultiplayerProvider';
-import { InvitePanel } from '../ui/InvitePanel';
 import { MusicToggle } from '../ui/MusicToggle';
+import { SparringRoomDialog } from '../ui/SparringRoomDialog';
 import {
   AvatarPodium,
   BOARD_SHOT,
@@ -297,7 +297,8 @@ function FighterCard({ onClose }: { onClose: () => void }) {
 
 export function LobbyPage() {
   const [hovered, setHovered] = useState<Spot | null>(null);
-  const [cardOpen, setCardOpen] = useState(false);
+  // Which prop's dialog is up: the fighter card or the sparring room's session picker.
+  const [dialog, setDialog] = useState<'card' | 'ring' | null>(null);
   // The spot the camera is flying to or parked at; its UI opens once the camera arrives.
   const [focus, setFocus] = useState<Spot | null>(null);
   const skin = useSkin();
@@ -313,8 +314,8 @@ export function LobbyPage() {
   }, []);
   const open = useCallback(
     (spot: Spot) => {
-      if (spot === 'card') setCardOpen(true);
-      else void navigate(spot === 'ring' ? '/game' : '/avatar');
+      if (spot === 'avatar') void navigate('/avatar');
+      else setDialog(spot);
     },
     [navigate],
   );
@@ -326,10 +327,11 @@ export function LobbyPage() {
     },
     [focus, open],
   );
-  const closeCard = useCallback(() => {
-    setCardOpen(false);
+  const closeDialog = useCallback(() => {
+    setDialog(null);
     setFocus(null);
   }, []);
+  const sparSolo = useCallback(() => void navigate('/game'), [navigate]);
   const choose = (spot: Spot) => (event: { preventDefault: () => void }) => {
     event.preventDefault();
     select(spot);
@@ -359,12 +361,10 @@ export function LobbyPage() {
         <MusicToggle />
       </div>
 
-      <InvitePanel />
-
       <nav className="gym-keys" aria-label="Gym">
-        <Link to="/game" onClick={choose('ring')} {...focusProps('ring')}>
+        <button type="button" onClick={choose('ring')} {...focusProps('ring')}>
           Enter the ring
-        </Link>
+        </button>
         <button type="button" onClick={choose('card')} {...focusProps('card')}>
           Fighter card
         </button>
@@ -379,7 +379,8 @@ export function LobbyPage() {
         </p>
       ) : null}
 
-      {cardOpen ? <FighterCard onClose={closeCard} /> : null}
+      {dialog === 'card' ? <FighterCard onClose={closeDialog} /> : null}
+      {dialog === 'ring' ? <SparringRoomDialog onClose={closeDialog} onSolo={sparSolo} /> : null}
 
       <div className="gym-floor-label" aria-hidden="true">
         <span>ROUND 01</span>

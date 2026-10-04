@@ -331,47 +331,9 @@ a {
   transform: rotate(45deg);
 }
 
-.invite-panel {
-  position: absolute;
-  z-index: 4;
-  top: clamp(76px, 11vh, 112px);
-  right: clamp(19px, 3vw, 52px);
-  width: clamp(320px, 29vw, 410px);
-  padding: 14px;
-  border: 1px solid #756951;
-  background:
-    linear-gradient(118deg, rgb(40 40 35 / 97%), rgb(25 29 27 / 95%)),
-    repeating-linear-gradient(0deg, #cbbf9c0c 0 1px, transparent 1px 3px);
-  box-shadow:
-    5px 7px 0 rgb(0 0 0 / 38%),
-    inset 0 0 22px #080a0980;
-  transform: rotate(0.35deg);
+.sparring-board {
+  width: min(430px, 100%);
 }
-.invite-panel::before,
-.invite-panel::after {
-  position: absolute;
-  top: -7px;
-  width: 54px;
-  height: 13px;
-  background: rgb(181 157 109 / 33%);
-  content: '';
-  transform: rotate(-2deg);
-}
-.invite-panel::before {
-  left: 26px;
-}
-.invite-panel::after {
-  right: 24px;
-  transform: rotate(3deg);
-}
-.invite-heading {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  padding-bottom: 11px;
-  border-bottom: 1px solid rgb(197 184 153 / 20%);
-}
-.invite-heading > div > span,
 .invite-label {
   color: #c7a36d;
   font-size: 7px;
@@ -379,15 +341,55 @@ a {
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
-.invite-heading h2 {
-  margin: 4px 0 0;
+.session-options {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+.session-option {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #756951;
+  background: rgb(22 26 24 / 70%);
+  color: #b9b09d;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+.session-option strong {
   color: #e4dac5;
   font:
-    700 25px/0.9 'Barlow Condensed',
+    700 22px/1 'Barlow Condensed',
     Impact,
     sans-serif;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+.session-option:hover,
+.session-option:focus-visible {
+  border-color: #d7a55e;
+  background: #49382c;
+  outline: none;
+}
+.session-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgb(197 184 153 / 20%);
+}
+.session-back {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: #cc8d68;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-decoration: underline;
+  cursor: pointer;
 }
 .invite-status-light {
   display: inline-flex;
@@ -667,15 +669,8 @@ a {
     bottom: 25%;
     left: 4%;
   }
-  .invite-panel {
-    top: auto;
-    right: 12px;
-    bottom: 188px;
-    width: min(350px, calc(100vw - 24px));
-    padding: 11px;
-  }
-  .invite-heading h2 {
-    font-size: 21px;
+  .corner-board.sparring-board {
+    width: min(380px, 100%);
   }
   .invite-actions {
     gap: 9px;
@@ -747,13 +742,8 @@ a {
   .gym-floor-label {
     bottom: 12px;
   }
-  .invite-panel {
-    top: 58px;
-    width: 360px;
-    padding: 10px;
-  }
-  .invite-heading h2 {
-    font-size: 20px;
+  .corner-board.sparring-board {
+    width: 400px;
   }
   .invite-help {
     margin-top: 6px;

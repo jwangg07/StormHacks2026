@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMultiplayer, type ActiveInvite } from '../net/MultiplayerProvider';
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -56,7 +56,7 @@ function InviteTicket({
   );
 }
 
-export function InvitePanel() {
+function FriendFight({ onBack }: { onBack: () => void }) {
   const { connectionState, invite, error, createInvite, acceptInvite, declineInvite, clearError } =
     useMultiplayer();
   const [code, setCode] = useState('');
@@ -64,17 +64,15 @@ export function InvitePanel() {
   const status = useMemo(() => {
     if (connectionState === 'CONNECTING') return 'Connecting to the gym…';
     if (connectionState === 'ERROR') return 'The sparring desk is offline.';
-    if (connectionState === 'SEARCHING') return 'Looking for a random opponent…';
     return 'Private challenges expire after ten minutes.';
   }, [connectionState]);
 
   return (
-    <section className="invite-panel" aria-labelledby="invite-title">
-      <div className="invite-heading">
-        <div>
-          <span>SPARRING DESK</span>
-          <h2 id="invite-title">Fight a friend</h2>
-        </div>
+    <>
+      <div className="session-bar">
+        <button className="session-back" type="button" onClick={onBack}>
+          ← Pick another session
+        </button>
         <span className="invite-status-light" data-online={connectionState !== 'ERROR'}>
           {connectionState === 'CONNECTING' ? 'LINKING' : 'ONLINE'}
         </span>
@@ -139,6 +137,84 @@ export function InvitePanel() {
       <p id="invite-help" className="invite-help" role={error ? 'alert' : 'status'}>
         {error ? (ERROR_MESSAGES[error.code] ?? error.message) : status}
       </p>
-    </section>
+    </>
+  );
+}
+
+type Session = 'choose' | 'friend';
+
+/**
+ * Opens once the lobby camera reaches the ring: the player picks solo bag work, or a private
+ * fight against a friend through a shared invite code.
+ */
+export function SparringRoomDialog({
+  onClose,
+  onSolo,
+}: {
+  onClose: () => void;
+  onSolo: () => void;
+}) {
+  const { invite } = useMultiplayer();
+  // An open challenge means the player already chose a friend fight; reopen on its ticket.
+  const [session, setSession] = useState<Session>(invite ? 'friend' : 'choose');
+  const closeButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      opener?.focus();
+    };
+  }, [onClose]);
+
+  // Park focus on the close button, as the fighter card does, so neither session looks
+  // preselected. Re-run per step: switching steps unmounts the button that was just pressed.
+  useEffect(() => {
+    closeButton.current?.focus();
+  }, [session]);
+
+  return (
+    <div className="card-backdrop" onClick={onClose}>
+      <section
+        className="corner-board sparring-board"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sparring-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="board-heading">
+          <span>SPARRING ROOM</span>
+          <button ref={closeButton} className="board-close" type="button" onClick={onClose}>
+            <span aria-hidden="true">×</span>
+            <span className="sr-only">Close sparring room</span>
+          </button>
+        </div>
+        {session === 'choose' ? (
+          <>
+            <h1 id="sparring-title">Pick a session</h1>
+            <p className="board-subtitle">WHO ARE YOU BOXING TODAY?</p>
+            <div className="session-options">
+              <button className="session-option" type="button" onClick={onSolo}>
+                <strong>Spar solo</strong>
+                <span>Work the bag at your own pace. No opponent, no clock.</span>
+              </button>
+              <button className="session-option" type="button" onClick={() => setSession('friend')}>
+                <strong>Fight a friend</strong>
+                <span>Share a six-character code, or enter the one they sent you.</span>
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 id="sparring-title">Fight a friend</h1>
+            <FriendFight onBack={() => setSession('choose')} />
+          </>
+        )}
+      </section>
+    </div>
   );
 }
