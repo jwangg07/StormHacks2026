@@ -126,3 +126,6 @@ export interface MatchState {
 export interface MatchSnapshot extends MatchState {
   serverTimestamp: number;
 }
+
+/** Largest camera-baked fighter skin (JPEG) a client may share. */
+export const AVATAR_SKIN_MAX_BYTES = 256 * 1024;
