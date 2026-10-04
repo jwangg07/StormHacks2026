@@ -6,8 +6,8 @@ network transfer of camera data is attached to the stream.
 
 Unmounting it releases every media track. `useCamera()` exposes the stream, status,
 message, camera choices, and start/stop methods. Mirror only the video element; the
-source stream is unchanged. `/game` and `/practice` share guided calibration and
-local action feedback; they do not send gameplay inputs to the server.
+source stream is unchanged. `/game` has guided calibration and local action
+feedback; it does not send gameplay inputs to the server.
 
 Run `npm run dev:web` and open the printed localhost URL in desktop Chrome or
 Edge. A remote deployment needs HTTPS; a plain HTTP LAN address cannot capture.
@@ -41,9 +41,9 @@ Manual device checks:
     camera playback must remain available. Restore the files and retry.
 
 12. Step into frame: calibration starts automatically on a VALID pose. Follow the
-    large gray instruction overlay and hold neutral for three seconds. Moving or hiding a required landmark resets
+    trainer dialog and hold neutral for three seconds. Moving or hiding a required landmark resets
     the hold. Perform each prompted action; Ready stays disabled until all four
-    are recognized. Confirm Ready and verify local practice counts update once
+    are recognized. Confirm Ready and verify the dialog closes and local practice counts update once
     per punch and once per defense entry.
 13. Hold an extended arm, return it to rest, and punch again. Test rapid alternating
     hands and simultaneous punches; confirm the shared 450 ms cooldown and no

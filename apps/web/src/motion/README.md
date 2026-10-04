@@ -37,11 +37,12 @@ A safe pose may be held for at most 200 ms; it is never passed off as a new samp
 200 ms become LOST. One second of continuous valid samples plus explicit
 confirmation is required to clear the gate, including initial startup.
 `MotionController` starts calibration automatically on the first VALID pose of a
-camera session, without a Start calibration click. `CalibrationOverlay` displays
-large instructions on a gray card over either view, with neutral countdown, left
-punch, right punch, guard, duck, and completion prompts. The overlay disappears
-after Confirm Ready; Recalibrate restarts it. Incomplete tracking asks the player
-to step into frame and cannot advance setup.
+camera session, without a Start calibration click. `/game` presents the initial
+calibration guide as a trainer dialog: neutral countdown, left punch, right punch,
+guard, duck, and ready confirmation. Confirm Ready closes the dialog and enables
+local practice. The movement setup drawer retains camera controls, sensitivity,
+counts, and diagnostics; Recalibrate opens the guided dialog again. Incomplete
+tracking asks the player to step into frame and cannot advance setup.
 `useMotionControls` combines this with calibration: hold a visible neutral stance
 for three uninterrupted seconds, then demonstrate left punch, right punch, guard,
 and duck in order. Only **Confirm Ready** enables local practice controls. Camera
@@ -78,8 +79,8 @@ Guard enters after 100 ms and exits after 150 ms. Duck needs both head and shoul
 drop, enters after 100 ms, uses a smaller exit threshold, expires at 800 ms, and
 requires 400 ms neutral to rearm. Attacks suppress both defenses during recovery.
 
-Both `/game` and `/practice` expose guided setup, sensitivity, local feedback,
-counts, and developer diagnostics. First-person arms consume smoothed estimated
+`/game` exposes guided calibration in a dialog and sensitivity, local feedback,
+counts, and developer diagnostics in the movement setup drawer. First-person arms consume smoothed estimated
 directions and calibrated segment ratios. `latestControls` and `subscribeControls`
 expose only normalized `MotionFrame` values; `PracticeAdapter` counts action edges.
 The future SocketInputAdapter must forward pause requests and attach the shared
