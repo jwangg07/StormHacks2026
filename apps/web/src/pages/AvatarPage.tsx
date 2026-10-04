@@ -191,6 +191,12 @@ export function AvatarPage() {
         <span className="avatar-rotate-hint">
           DRAG TO ROTATE <i /> SCROLL TO ZOOM
         </span>
+        <div className="avatar-instruction" role="status" aria-live="polite">
+          <span className="avatar-instruction-kicker">{phaseLabel}</span>
+          <p key={message} className="avatar-instruction-text">
+            {message}
+          </p>
+        </div>
       </section>
 
       <aside
@@ -198,10 +204,6 @@ export function AvatarPage() {
         aria-label="Fighter skin scan"
       >
         <div className="avatar-console-copy">
-          <span className="avatar-console-kicker">{phaseLabel}</span>
-          <p className="avatar-console-message" role="status" aria-live="polite">
-            {message}
-          </p>
           <div className="avatar-actions">
             {actions}
             {savedBlob ? (
