@@ -63,7 +63,7 @@ export function useSoloTraining(motion: MotionControls, enabled: boolean) {
       });
     };
 
-    setWorkout(idleWorkout);
+    const resetTimer = window.setTimeout(() => setWorkout(idleWorkout), 0);
     const timer = window.setInterval(() => updateClock(performance.now()), 200);
     const unsubscribe = subscribeControls((frame) => {
       if (frame.timestamp <= lastFrameAt) return;
@@ -95,6 +95,7 @@ export function useSoloTraining(motion: MotionControls, enabled: boolean) {
     });
 
     return () => {
+      window.clearTimeout(resetTimer);
       window.clearInterval(timer);
       unsubscribe();
     };

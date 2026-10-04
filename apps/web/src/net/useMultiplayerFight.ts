@@ -7,7 +7,21 @@ import { useMultiplayer } from './MultiplayerProvider';
 import { usePeerPoseTransport } from './usePeerPoseTransport';
 
 export type FightConnectionState =
-  'CONNECTING' | 'SOLO' | 'CALIBRATING' | 'READY' | 'COUNTDOWN' | 'FIGHTING' | 'FINISHED' | 'ERROR';
+  | 'CONNECTING'
+  | 'SOLO'
+  | 'CALIBRATING'
+  | 'READY'
+  | 'COUNTDOWN'
+  | 'FIGHTING'
+  | 'PAUSED'
+  | 'FINISHED'
+  | 'ERROR';
+
+export interface FightImpact {
+  attack: { id: string; defenderSeat: 'A' | 'B' };
+  outcome: 'HIT' | 'BLOCK';
+  damage: number;
+}
 
 function inputFromMotion(matchId: string, sequence: number, frame: MotionFrame): GameInput {
   const clamp = (value: number) => Math.max(-2, Math.min(2, value));
@@ -42,6 +56,7 @@ export function useMultiplayerFight(motion: MotionControls) {
   const assignmentRef = useRef(assignment);
   const [snapshot, setSnapshot] = useState<MatchSnapshot | null>(null);
   const [opponentInput, setOpponentInput] = useState<OpponentInputPayload | null>(null);
+  const [lastImpact, setLastImpact] = useState<FightImpact | null>(null);
   const matchId = useRef<string | null>(null);
   const active = useRef(false);
   const sequence = useRef(0);
@@ -56,7 +71,9 @@ export function useMultiplayerFight(motion: MotionControls) {
   }, []);
   const sendPeerPose = usePeerPoseTransport(socket, assignment, receiveOpponentInput);
 
-  assignmentRef.current = assignment;
+  useEffect(() => {
+    assignmentRef.current = assignment;
+  }, [assignment]);
 
   useEffect(() => {
     socketRef.current = socket;
@@ -67,7 +84,17 @@ export function useMultiplayerFight(motion: MotionControls) {
       setMatchState('FIGHTING');
     });
     socket.on('match.snapshot', (next: MatchSnapshot) => setSnapshot(next));
+    socket.on('match.paused', (next: MatchSnapshot) => {
+      setSnapshot(next);
+      setMatchState('PAUSED');
+    });
+    socket.on('match.resumed', (next: MatchSnapshot) => {
+      setSnapshot(next);
+      setMatchState('FIGHTING');
+    });
     socket.on('game.opponentInput', receiveOpponentInput);
+    socket.on('game.hit', setLastImpact);
+    socket.on('game.block', setLastImpact);
     socket.on('match.countdownCancelled', () => setMatchState(null));
     socket.on('match.finished', (finalSnapshot: MatchSnapshot) => {
       active.current = false;
@@ -79,7 +106,11 @@ export function useMultiplayerFight(motion: MotionControls) {
       socket.off('match.countdown');
       socket.off('match.started');
       socket.off('match.snapshot');
+      socket.off('match.paused');
+      socket.off('match.resumed');
       socket.off('game.opponentInput', receiveOpponentInput);
+      socket.off('game.hit', setLastImpact);
+      socket.off('game.block', setLastImpact);
       socket.off('match.countdownCancelled');
       socket.off('match.finished');
       matchId.current = null;
@@ -142,6 +173,7 @@ export function useMultiplayerFight(motion: MotionControls) {
     connectionState,
     assignment,
     snapshot,
+    lastImpact,
     opponentInput: opponentInput?.input.matchId === assignment?.matchId ? opponentInput : null,
   };
 }

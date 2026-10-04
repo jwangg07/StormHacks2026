@@ -247,13 +247,19 @@ export class MultiplayerCoordinator {
       if (!room.match.applyInput(player.seat, player.sessionId, parsed.data))
         return this.reject(socket, ack, 'STALE_INPUT', 'Input rejected');
 
+      const trackingTransition = room.match.syncTracking();
+      if (trackingTransition === 'PAUSED')
+        this.io.to(room.id).emit('match.paused', this.snapshot(room.match));
+      else if (trackingTransition === 'RESUMED')
+        this.io.to(room.id).emit('match.resumed', this.snapshot(room.match));
+
       room.players[otherSeat(player.seat)].socket.volatile.emit('game.opponentInput', {
         seat: player.seat,
         input: parsed.data,
         serverTimestamp: Date.now(),
       });
 
-      if (parsed.data.punchAttempt) {
+      if (parsed.data.punchAttempt && room.match.state.state === 'ACTIVE') {
         const attack = room.match.requestPunch(player.seat, parsed.data.punchAttempt);
         if (!attack)
           return this.reject(socket, ack, 'MATCH_NOT_ACTIVE', 'Punch rejected by match rules');
@@ -442,7 +448,11 @@ export class MultiplayerCoordinator {
     this.removeFromQueue(player);
     const room = this.roomFor(player);
     if (!room || room.match.state.state === 'FINISHED') return;
-    room.match.finish({ reason: 'ABANDONED', draw: true });
+    room.match.finish({
+      reason: 'ABANDONED',
+      winnerSeat: player.seat ? otherSeat(player.seat) : 'A',
+      draw: false,
+    });
     this.io.to(room.id).emit('match.finished', this.snapshot(room.match));
     this.cleanupRoom(room);
   }

@@ -66,6 +66,8 @@ export class AuthoritativeMatch {
   readonly state: MatchState;
   private readonly identity: MatchIdentity;
   private simulationTick = 0n;
+  private pausedAt?: number;
+  private pausedSeats: Seat[] = [];
 
   constructor(
     options: MatchRuntimeOptions,
@@ -99,7 +101,11 @@ export class AuthoritativeMatch {
   }
 
   applyInput(seat: Seat, sessionId: string, input: GameInput, now = Date.now()): boolean {
-    if (this.state.state !== 'ACTIVE' || input.matchId !== this.state.id) return false;
+    if (
+      (this.state.state !== 'ACTIVE' && this.state.state !== 'PAUSED') ||
+      input.matchId !== this.state.id
+    )
+      return false;
     const player = this.state.players[seat];
     if (input.sequence <= player.lastAcceptedSequence) return false;
     player.lastAcceptedSequence = input.sequence;
@@ -113,6 +119,31 @@ export class AuthoritativeMatch {
     this.state.revision++;
     this.persistence.recordMovement(this.state, sessionId, seat, input, now);
     return true;
+  }
+
+  syncTracking(now = Date.now()): 'PAUSED' | 'RESUMED' | null {
+    const invalid = (['A', 'B'] as const).filter(
+      (seat) => this.state.players[seat].tracking !== 'VALID',
+    );
+    if (this.state.state === 'ACTIVE' && invalid.length > 0) {
+      this.state.state = 'PAUSED';
+      this.pausedAt = now;
+      this.pausedSeats = [...invalid];
+      this.state.attacks = [];
+      this.state.revision++;
+      return 'PAUSED';
+    }
+    if (this.state.state === 'PAUSED' && invalid.length === 0) {
+      const pauseDuration = Math.max(0, now - (this.pausedAt ?? now));
+      if (this.state.startedAt !== undefined) this.state.startedAt += pauseDuration;
+      for (const seat of this.pausedSeats) this.state.stats[seat].trackingPauseMs += pauseDuration;
+      this.pausedAt = undefined;
+      this.pausedSeats = [];
+      this.state.state = 'ACTIVE';
+      this.state.revision++;
+      return 'RESUMED';
+    }
+    return null;
   }
 
   requestPunch(attackerSeat: Seat, hand: Hand, now = Date.now()): ScheduledAttack | null {
@@ -134,10 +165,7 @@ export class AuthoritativeMatch {
       windupEndsAt: now + matchConfig.punchWindupMs,
       activeEndsAt: now + matchConfig.punchWindupMs + matchConfig.punchActiveMs,
       recoveryEndsAt:
-        now +
-        matchConfig.punchWindupMs +
-        matchConfig.punchActiveMs +
-        matchConfig.punchRecoveryMs,
+        now + matchConfig.punchWindupMs + matchConfig.punchActiveMs + matchConfig.punchRecoveryMs,
       resolved: false,
     };
     this.state.attacks.push(attack);
@@ -170,12 +198,19 @@ export class AuthoritativeMatch {
     if (this.state.state === 'ACTIVE' && this.state.remainingTimeMs === 0) {
       const hpA = this.state.players.A.hp;
       const hpB = this.state.players.B.hp;
-      this.finish(
-        hpA === hpB
-          ? { reason: 'TIMEOUT', draw: true }
-          : { reason: 'TIMEOUT', winnerSeat: hpA > hpB ? 'A' : 'B', draw: false },
-        now,
-      );
+      const winnerSeat =
+        hpA !== hpB
+          ? hpA > hpB
+            ? 'A'
+            : 'B'
+          : this.state.stats.A.cleanHits !== this.state.stats.B.cleanHits
+            ? this.state.stats.A.cleanHits > this.state.stats.B.cleanHits
+              ? 'A'
+              : 'B'
+            : this.state.stats.A.attempts >= this.state.stats.B.attempts
+              ? 'A'
+              : 'B';
+      this.finish({ reason: 'TIMEOUT', winnerSeat, draw: false }, now);
     }
     return resolved;
   }
@@ -192,7 +227,7 @@ export class AuthoritativeMatch {
         : outcome === 'BLOCK'
           ? matchConfig.blockedDamage
           : 0;
-    defender.hp = clamp(defender.hp - damage, 0, matchConfig.maxHealth);
+    defender.hp = clamp(Number((defender.hp - damage).toFixed(1)), 0, matchConfig.maxHealth);
 
     const attackerStats = this.state.stats[attackerSeat];
     const defenderStats = this.state.stats[defenderSeat];

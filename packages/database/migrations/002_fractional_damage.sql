@@ -1,0 +1,6 @@
+ALTER TABLE matches
+  ALTER COLUMN final_hp_a TYPE NUMERIC(5, 1),
+  ALTER COLUMN final_hp_b TYPE NUMERIC(5, 1);
+
+ALTER TABLE combat_events
+  ALTER COLUMN damage TYPE NUMERIC(5, 1);

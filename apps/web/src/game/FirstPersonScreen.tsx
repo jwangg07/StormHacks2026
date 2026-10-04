@@ -30,6 +30,36 @@ const CAMERA_ROTATION: [number, number, number] = [-0.2, 0, 0];
 const formatWorkoutClock = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
+function HealthBar({
+  label,
+  hp,
+  opponent = false,
+}: {
+  label: string;
+  hp: number;
+  opponent?: boolean;
+}) {
+  const bounded = Math.max(0, Math.min(100, hp));
+  return (
+    <div className="fp-health" data-opponent={opponent || undefined}>
+      <div className="fp-health-label">
+        <span>{label}</span>
+        <strong>{Number.isInteger(bounded) ? bounded : bounded.toFixed(1)}</strong>
+      </div>
+      <div
+        className="fp-health-track"
+        role="progressbar"
+        aria-label={`${label} health`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={bounded}
+      >
+        <i style={{ width: `${bounded}%` }} />
+      </div>
+    </div>
+  );
+}
+
 class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {
@@ -289,6 +319,14 @@ export function FirstPersonScreen() {
   const soloWorkout = useSoloTraining(motion, !fight.assignment);
   const { socket, assignment, leaveFight } = useMultiplayer();
   const opponentSkin = useBlobTexture(useOpponentSkinBlob(socket));
+  const ownSeat = assignment?.seat;
+  const opponentSeat = ownSeat === 'A' ? 'B' : 'A';
+  const ownHealth = ownSeat ? (fight.snapshot?.players[ownSeat].hp ?? 100) : 100;
+  const opponentHealth = ownSeat ? (fight.snapshot?.players[opponentSeat].hp ?? 100) : 100;
+  const winnerSeat = fight.snapshot?.result?.winnerSeat;
+  const trackingLostSeat = fight.snapshot
+    ? (['A', 'B'] as const).find((seat) => fight.snapshot?.players[seat].tracking !== 'VALID')
+    : undefined;
 
   useEffect(() => {
     if (assignment && skinBlob) void publishSkin(socket, skinBlob);
@@ -371,6 +409,47 @@ export function FirstPersonScreen() {
         </SceneBoundary>
       </div>
       <div className="fp-film-grain" aria-hidden="true" />
+
+      {assignment ? (
+        <section className="fp-health-hud" aria-label="Fighter health">
+          <HealthBar label="YOU" hp={ownHealth} />
+          <HealthBar label="OPPONENT" hp={opponentHealth} opponent />
+        </section>
+      ) : null}
+
+      {fight.lastImpact ? (
+        <div
+          className="fp-damage-callout"
+          data-defender={fight.lastImpact.attack.defenderSeat === ownSeat ? 'self' : 'opponent'}
+          key={fight.lastImpact.attack.id}
+          role="status"
+        >
+          {fight.lastImpact.outcome === 'BLOCK' ? 'GUARDED' : 'HIT'} −{fight.lastImpact.damage}
+        </div>
+      ) : null}
+
+      {fight.connectionState === 'PAUSED' ? (
+        <div className="fp-match-overlay" role="status" aria-live="assertive">
+          <span>ROUND PAUSED</span>
+          <h2>
+            {trackingLostSeat === ownSeat ? 'STEP BACK INTO FRAME' : 'OPPONENT TRACKING LOST'}
+          </h2>
+          <p>The clock and combat resume when both fighters are tracked.</p>
+        </div>
+      ) : null}
+
+      {fight.connectionState === 'FINISHED' && winnerSeat && ownSeat ? (
+        <div className="fp-match-overlay fp-result" role="dialog" aria-modal="true">
+          <span>OFFICIAL RESULT</span>
+          <h2>{winnerSeat === ownSeat ? 'YOU WIN' : 'YOU LOSE'}</h2>
+          <p>
+            {ownHealth.toFixed(1)} HP · {opponentHealth.toFixed(1)} opponent HP
+          </p>
+          <Link className="fp-result-action" to="/" onClick={leaveFight}>
+            RETURN TO THE GYM
+          </Link>
+        </div>
+      ) : null}
 
       {!calibrationOpen ? (
         <aside className="fp-ring-preview" aria-label="Live camera preview">

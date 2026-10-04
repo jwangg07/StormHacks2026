@@ -1,8 +1,8 @@
 export const matchConfig = {
   maxHealth: 100,
   roundMs: 60_000,
-  cleanDamage: 8,
-  blockedDamage: 2,
+  cleanDamage: 6,
+  blockedDamage: 1.2,
   punchWindupMs: 250,
   punchActiveMs: 100,
   punchRecoveryMs: 100,

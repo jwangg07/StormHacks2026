@@ -132,6 +132,48 @@ describe('API persistence integration', () => {
     expect(store.close).toHaveBeenCalledOnce();
   });
 
+  it('applies six damage for a hit and eighty-percent guard reduction', async () => {
+    const runtime = await createApiServer({ environment: environment(), logger: logger() });
+    const match = createMatch(runtime);
+    match.start(2_000);
+
+    expect(match.resolvePunch('A', 'right', 2_100)).toBe('HIT');
+    expect(match.state.players.B.hp).toBe(94);
+    match.applyInput('B', 'session-b', { ...input(match.state.id, 1), guard: true }, 2_600);
+    expect(match.resolvePunch('A', 'right', 2_600)).toBe('BLOCK');
+    expect(match.state.players.B.hp).toBe(92.8);
+
+    await runtime.stop();
+  });
+
+  it('pauses the round clock until both fighters recover tracking', async () => {
+    const runtime = await createApiServer({ environment: environment(), logger: logger() });
+    const match = createMatch(runtime);
+    match.start(2_000);
+
+    match.applyInput('A', 'session-a', { ...input(match.state.id, 1), tracking: 'LOST' }, 2_100);
+    expect(match.syncTracking(2_100)).toBe('PAUSED');
+    match.tick(5_000);
+    expect(match.state.remainingTimeMs).toBe(60_000);
+
+    match.applyInput('A', 'session-a', input(match.state.id, 2), 5_000);
+    expect(match.syncTracking(5_000)).toBe('RESUMED');
+    match.tick(5_100);
+    expect(match.state.remainingTimeMs).toBe(59_800);
+    expect(match.state.stats.A.trackingPauseMs).toBe(2_900);
+    await runtime.stop();
+  });
+
+  it('chooses one deterministic winner when timeout scores are tied', async () => {
+    const runtime = await createApiServer({ environment: environment(), logger: logger() });
+    const match = createMatch(runtime);
+    match.start(2_000);
+    match.tick(62_000);
+
+    expect(match.state.result).toEqual({ reason: 'TIMEOUT', winnerSeat: 'A', draw: false });
+    await runtime.stop();
+  });
+
   it('drops optional sampled movement safely when the bounded queue is full', async () => {
     const store = persistence();
     const runtime = await createApiServer({

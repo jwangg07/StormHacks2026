@@ -129,8 +129,8 @@ describe('minimal two-player flow', () => {
     expect(b.messages('game.hit')).toHaveLength(1);
     const snapshotA = a.messages('match.snapshot').at(-1) as MatchSnapshot;
     const snapshotB = b.messages('match.snapshot').at(-1) as MatchSnapshot;
-    expect(snapshotA.players.B.hp).toBe(92);
-    expect(snapshotB.players.B.hp).toBe(92);
+    expect(snapshotA.players.B.hp).toBe(94);
+    expect(snapshotB.players.B.hp).toBe(94);
     expect(snapshotA.id).toBe(snapshotB.id);
     expect(snapshotA.revision).toBe(snapshotB.revision);
 

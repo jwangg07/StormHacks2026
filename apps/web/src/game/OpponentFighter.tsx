@@ -14,7 +14,8 @@ const rootRotation = new Quaternion();
 const target = new Vector3();
 const targetPosition = new Vector3();
 const MAT_Y = 0.17;
-const OPPONENT_Z = -2.75;
+// Roughly arm's length from the eye camera: close enough to read as face-to-face.
+const OPPONENT_Z = -1.75;
 const SMOOTHING_SECONDS = 0.02;
 const MAX_PREDICTION_MS = 50;
 const MIN_DIRECTION_LENGTH_SQ = 1e-6;
