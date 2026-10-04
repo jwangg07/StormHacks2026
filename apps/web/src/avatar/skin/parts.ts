@@ -143,8 +143,11 @@ export function partFrames(model: ModelData): PartFrame[] {
         return [joint(`thigh_${s}`), joint(`shin_${s}`)];
       case 'shin':
         return [joint(`shin_${s}`), joint(`foot_${s}`)];
-      case 'foot':
-        return tip(index, joint(`foot_${s}`), normalize(sub(joint(`toe_${s}`), joint(`foot_${s}`))));
+      case 'foot': {
+        const dir = sub(joint(`toe_${s}`), joint(`foot_${s}`));
+        const horizontal: Vec3 = [dir[0], 0, dir[2]];
+        return tip(index, joint(`foot_${s}`), normalize(horizontal));
+      }
       default:
         throw new Error(`No anchors for body part ${part.name}`);
     }
