@@ -2,8 +2,10 @@ import { Canvas } from '@react-three/fiber';
 import { Link } from 'react-router';
 import { CameraPreview } from '../cam/CameraPreview';
 import { Ring } from '../game/Ring';
+import { useSkin } from '../avatar/skinStore';
 
 export function GamePage() {
+  const skin = useSkin();
   return (
     <main className="subpage">
       <header className="topbar">
@@ -28,7 +30,7 @@ export function GamePage() {
               <color attach="background" args={['#111921']} />
               <ambientLight intensity={1.3} />
               <directionalLight position={[-3, 7, 5]} intensity={2} color="#f4d4a5" />
-              <Ring active />
+              <Ring active skins={{ A: skin }} />
             </Canvas>
           </div>
           <p className="game-note">Camera frames stay on this device. Use small, controlled movements.</p>

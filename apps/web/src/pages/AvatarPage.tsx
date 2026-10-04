@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { RobotAvatar } from '../ui/RobotAvatar';
+import { FighterPortrait } from '../avatar/FighterPortrait';
 
 export function AvatarPage() {
   return (
@@ -26,7 +26,7 @@ export function AvatarPage() {
           </Link>
         </div>
         <div className="avatar-display">
-          <RobotAvatar />
+          <FighterPortrait skin={null} />
         </div>
         <div className="coming-soon">
           CUSTOMIZATION

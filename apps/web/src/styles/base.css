@@ -412,154 +412,17 @@ a {
 .avatar-copy b {
   color: var(--blue);
 }
-.robot-avatar {
-  position: relative;
-  width: 200px;
-  height: 270px;
-  filter: drop-shadow(0 16px 18px rgb(0 0 0 / 32%));
+.fighter-portrait {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 150px;
+  height: 220px;
+  pointer-events: none;
   transition: transform 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.avatar-bay:hover .robot-avatar {
-  transform: translateY(-8px) rotate(2deg);
-}
-.robot-avatar.compact {
-  position: absolute;
-  right: 2px;
-  bottom: -32px;
-  width: 135px;
-  height: 190px;
-  transform: scale(0.9);
-  transform-origin: bottom right;
-}
-.avatar-bay:hover .robot-avatar.compact {
-  transform: scale(0.9) translateY(-7px) rotate(3deg);
-}
-.robot-shadow {
-  position: absolute;
-  right: 17%;
-  bottom: 8%;
-  left: 17%;
-  height: 13px;
-  border-radius: 50%;
-  background: rgb(0 0 0 / 44%);
-  filter: blur(7px);
-}
-.robot-body {
-  position: absolute;
-  top: 37%;
-  left: 35%;
-  width: 31%;
-  height: 35%;
-  border: 1px solid #8599a0;
-  border-radius: 36% 36% 27% 27%;
-  background: linear-gradient(135deg, #c5cfcb, #6a7b80 62%, #46545c);
-  box-shadow:
-    inset 0 3px 0 rgb(255 255 255 / 30%),
-    0 0 24px rgb(83 169 215 / 10%);
-}
-.robot-body::after {
-  position: absolute;
-  top: 41%;
-  right: 16%;
-  left: 16%;
-  height: 4px;
-  border-radius: 4px;
-  background: var(--blue);
-  box-shadow: 0 0 9px var(--blue);
-  content: '';
-}
-.robot-head {
-  position: absolute;
-  z-index: 2;
-  top: 17%;
-  left: 36%;
-  width: 29%;
-  height: 22%;
-  border: 1px solid #9eaaa6;
-  border-radius: 42% 42% 35% 35%;
-  background: linear-gradient(140deg, #d0d6d1, #77888d);
-}
-.robot-head::before {
-  position: absolute;
-  top: 47%;
-  right: 12%;
-  left: 12%;
-  height: 5px;
-  border-radius: 5px;
-  background: #15212a;
-  content: '';
-}
-.robot-head i {
-  position: absolute;
-  z-index: 1;
-  top: 55%;
-  left: 25%;
-  width: 9px;
-  height: 3px;
-  border-radius: 3px;
-  background: #94dcf1;
-  box-shadow:
-    21px 0 #94dcf1,
-    0 0 7px #50c0e4;
-}
-.robot-head b {
-  position: absolute;
-  top: -8px;
-  left: 45%;
-  width: 13px;
-  height: 9px;
-  border-top: 2px solid var(--amber);
-}
-.robot-arm {
-  position: absolute;
-  z-index: 3;
-  top: 40%;
-  width: 16%;
-  height: 31%;
-  border-radius: 14px;
-  background: linear-gradient(90deg, #65767d, #bec9c5, #66767a);
-  transform-origin: 50% 12%;
-}
-.robot-arm i {
-  position: absolute;
-  bottom: -23px;
-  left: -6px;
-  width: 39px;
-  height: 34px;
-  border: 1px solid rgb(255 255 255 / 30%);
-  border-radius: 43% 48% 40% 42%;
-  background: linear-gradient(145deg, #67b6df, #28749f);
-  box-shadow: 0 4px 9px rgb(0 0 0 / 35%);
-}
-.arm-left {
-  left: 22%;
-  transform: rotate(19deg);
-}
-.arm-right {
-  right: 22%;
-  transform: rotate(-19deg);
-}
-.arm-right i {
-  background: linear-gradient(145deg, #f2b266, #bc6737);
-}
-.robot-leg {
-  position: absolute;
-  top: 68%;
-  width: 12%;
-  height: 24%;
-  border-radius: 8px;
-  background: linear-gradient(90deg, #47565d, #9eaaa4, #48565d);
-}
-.leg-left {
-  left: 37%;
-  transform: rotate(3deg);
-}
-.leg-right {
-  right: 37%;
-  transform: rotate(-3deg);
-}
-.avatar-display .robot-avatar {
-  transform: scale(1.14);
+.avatar-bay:hover .fighter-portrait {
+  transform: translateY(-7px);
 }
 
 .lobby-footer {
@@ -739,6 +602,10 @@ a {
 }
 
 @media (max-width: 1120px) {
+  .fighter-portrait {
+    width: 120px;
+    height: 176px;
+  }
   .lobby {
     padding: 0 22px;
   }
@@ -753,12 +620,6 @@ a {
     width: 190px;
     min-height: 180px;
     opacity: 0.97;
-  }
-  .robot-avatar.compact {
-    transform: scale(0.72);
-  }
-  .avatar-bay:hover .robot-avatar.compact {
-    transform: scale(0.72) translateY(-7px) rotate(3deg);
   }
   .lobby-footer span:last-child {
     display: none;
@@ -823,13 +684,6 @@ a {
     margin: 0 12px 12px;
     order: 3;
   }
-  .robot-avatar.compact {
-    right: 8px;
-    transform: scale(0.78);
-  }
-  .avatar-bay:hover .robot-avatar.compact {
-    transform: scale(0.78) translateY(-7px) rotate(3deg);
-  }
   .arena-caption {
     align-items: start;
     flex-direction: column;
@@ -855,9 +709,6 @@ a {
   }
   .avatar-display {
     min-height: 330px;
-  }
-  .avatar-display .robot-avatar {
-    transform: scale(0.95);
   }
   .game-preview {
     min-height: 350px;

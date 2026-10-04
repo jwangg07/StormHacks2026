@@ -1,68 +1,35 @@
+import { Suspense, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useRef } from 'react';
-import type { Group, MeshStandardMaterial } from 'three';
+import type { Group, MeshStandardMaterial, Texture } from 'three';
+import type { Seat } from '@wb/core';
+import { FighterModel } from '../avatar/FighterModel';
 
 interface RingProps {
   active?: boolean;
+  skins?: Partial<Record<Seat, Texture | null>>;
 }
 
-function Fighter({ x, color, glove }: { x: number; color: string; glove: string }) {
-  const boxer = useRef<Group>(null);
-  const gloves = useRef<Group>(null);
+/** The fighter model is 1.8 m tall; this keeps it in proportion with the ropes. */
+const FIGHTER_SCALE = 0.8;
+/** Top of the canvas mat. */
+const MAT_Y = 0.19;
 
-  useFrame(({ clock }, delta) => {
-    if (!boxer.current || !gloves.current) return;
-    boxer.current.position.y = 0.03 + Math.sin(clock.elapsedTime * 2.1 + x) * 0.035;
-    gloves.current.rotation.z = Math.sin(clock.elapsedTime * 1.8 + x) * 0.045;
-    gloves.current.rotation.y +=
-      (Math.sin(clock.elapsedTime + x) * 0.035 - gloves.current.rotation.y) * delta * 2;
+function Fighter({ x, glove, skin }: { x: number; glove: string; skin: Texture | null }) {
+  const boxer = useRef<Group>(null);
+
+  useFrame(({ clock }) => {
+    if (boxer.current) boxer.current.position.y = MAT_Y + Math.sin(clock.elapsedTime * 2.1 + x) * 0.035;
   });
 
+  // Player A (left, x < 0) faces +x; player B faces -x.
   return (
-    <group ref={boxer} position={[x, 0, 0]}>
-      <mesh position={[0, 0.66, 0]} castShadow>
-        <capsuleGeometry args={[0.28, 0.48, 6, 10]} />
-        <meshStandardMaterial color={color} roughness={0.55} metalness={0.15} />
-      </mesh>
-      <mesh position={[0, 1.18, 0]} castShadow>
-        <sphereGeometry args={[0.23, 20, 16]} />
-        <meshStandardMaterial color="#d8d9d5" metalness={0.35} roughness={0.38} />
-      </mesh>
-      <mesh position={[0.035, 1.2, 0.2]}>
-        <boxGeometry args={[0.14, 0.045, 0.018]} />
-        <meshStandardMaterial color="#b9d6de" emissive="#65c6eb" emissiveIntensity={0.6} />
-      </mesh>
-      <mesh position={[-0.13, 0.15, 0]} castShadow>
-        <capsuleGeometry args={[0.09, 0.3, 4, 8]} />
-        <meshStandardMaterial color="#343d45" roughness={0.75} />
-      </mesh>
-      <mesh position={[0.13, 0.15, 0]} castShadow>
-        <capsuleGeometry args={[0.09, 0.3, 4, 8]} />
-        <meshStandardMaterial color="#343d45" roughness={0.75} />
-      </mesh>
-      <group ref={gloves}>
-        <mesh position={[-0.38, 0.78, 0.04]} castShadow>
-          <capsuleGeometry args={[0.075, 0.36, 4, 8]} />
-          <meshStandardMaterial color="#bac2c5" metalness={0.2} roughness={0.5} />
-        </mesh>
-        <mesh position={[0.38, 0.78, 0.04]} castShadow>
-          <capsuleGeometry args={[0.075, 0.36, 4, 8]} />
-          <meshStandardMaterial color="#bac2c5" metalness={0.2} roughness={0.5} />
-        </mesh>
-        <mesh position={[-0.43, 0.56, 0.12]} castShadow>
-          <sphereGeometry args={[0.16, 16, 12]} />
-          <meshStandardMaterial color={glove} roughness={0.4} metalness={0.08} />
-        </mesh>
-        <mesh position={[0.43, 0.56, 0.12]} castShadow>
-          <sphereGeometry args={[0.16, 16, 12]} />
-          <meshStandardMaterial color={glove} roughness={0.4} metalness={0.08} />
-        </mesh>
-      </group>
+    <group ref={boxer} position={[x, MAT_Y, 0]} rotation={[0, x < 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+      <FighterModel skin={skin} pose="guard" glove={glove} scale={FIGHTER_SCALE} />
     </group>
   );
 }
 
-export function Ring({ active = false }: RingProps) {
+export function Ring({ active = false, skins = {} }: RingProps) {
   const ropeMaterial = useRef<MeshStandardMaterial>(null);
   const energy = useRef(0);
 
@@ -87,14 +54,16 @@ export function Ring({ active = false }: RingProps) {
         <boxGeometry args={[7.8, 0.08, 4.9]} />
         <meshStandardMaterial color={active ? '#b7c2bf' : '#929e9e'} roughness={0.9} />
       </mesh>
-      {[-1, 1].map((side) => (
-        <Fighter
-          key={side}
-          x={side * 1.55}
-          color={side < 0 ? '#397da7' : '#9e5834'}
-          glove={side < 0 ? '#48a8d8' : '#ed9850'}
-        />
-      ))}
+      <Suspense fallback={null}>
+        {(['A', 'B'] as const).map((seat) => (
+          <Fighter
+            key={seat}
+            x={seat === 'A' ? -1.55 : 1.55}
+            glove={seat === 'A' ? '#48a8d8' : '#ed9850'}
+            skin={skins[seat] ?? null}
+          />
+        ))}
+      </Suspense>
       {[-1, 1].map((x) =>
         [-1, 1].map((z) => (
           <mesh key={`post-${x}-${z}`} position={[x * 4, 0.82, z * 2.5]} castShadow>

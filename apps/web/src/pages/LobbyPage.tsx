@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { Ring } from '../game/Ring';
 import { MusicToggle } from '../ui/MusicToggle';
-import { RobotAvatar } from '../ui/RobotAvatar';
+import { FighterPortrait } from '../avatar/FighterPortrait';
+import { useSkin } from '../avatar/skinStore';
 
 const stats = [
   { label: 'Fight record', value: '07—03', note: 'demo profile' },
@@ -14,6 +15,7 @@ const stats = [
 
 export function LobbyPage() {
   const [hot, setHot] = useState(false);
+  const skin = useSkin();
 
   return (
     <main className="lobby">
@@ -90,7 +92,7 @@ export function LobbyPage() {
                 intensity={hot ? 65 : 44}
                 color="#ffc779"
               />
-              <Ring active={hot} />
+              <Ring active={hot} skins={{ A: skin }} />
             </Canvas>
             <div className="arena-enter" aria-hidden="true">
               <span className="enter-icon" aria-hidden="true">
@@ -117,7 +119,7 @@ export function LobbyPage() {
               Avatar studio <b aria-hidden="true">↗</b>
             </span>
           </div>
-          <RobotAvatar compact />
+          <FighterPortrait skin={skin} />
         </Link>
       </section>
       <footer className="lobby-footer">
