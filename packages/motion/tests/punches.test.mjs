@@ -116,12 +116,13 @@ test('forward foreshortening with a moving elbow does not require visible wrist 
   }
 });
 
-test('short clear outward extensions register as straights without a long lateral sweep', () => {
+test('short outward straights require actual elbow extension rather than an angle label alone', () => {
   for (const hand of ['left', 'right']) {
     const sign = hand === 'left' ? 1 : -1;
     const d = new ActionDetector();
-    d.update(features(0));
-    const end = { wrist: point(sign * 0.87, 0.3), imageElbowAngle: 145, elbowAngle: 145 };
+    const start = { elbow: point(sign * 0.8, 0.6) };
+    d.update(features(0, hand === 'left' ? start : {}, hand === 'right' ? start : {}));
+    const end = { elbow: point(sign * 0.85, 0.32), wrist: point(sign * 0.87, 0.3), imageElbowAngle: 145, elbowAngle: 145, projectedForearm: 0.2 };
     const frame = d.update(features(100, hand === 'left' ? end : {}, hand === 'right' ? end : {}));
     assert.equal(frame.punch, hand);
     assert.equal(frame.move, hand === 'left' ? 'jab' : 'cross');
