@@ -56,3 +56,14 @@ test('invalid skins and players outside a room are rejected without relaying', (
   assert.equal(inside.emitted.length, 0);
   inside.fire('avatar:skin', { jpeg }); // no ack callback must not throw
 });
+
+test('a non-function ack is ignored instead of throwing', () => {
+  const relay = new SkinRelay();
+  const inside = fakeSocket({ roomId: 'r1', seat: 'A' });
+  addAvatarHandlers(inside, relay);
+  assert.doesNotThrow(() => inside.fire('avatar:skin', { jpeg }, 'x'));
+  assert.equal(inside.emitted.length, 1);
+  const outside = fakeSocket({});
+  addAvatarHandlers(outside, relay);
+  assert.doesNotThrow(() => outside.fire('avatar:skin', { jpeg }, {}));
+});

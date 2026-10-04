@@ -12,20 +12,21 @@ interface RoomMembership {
 type AvatarSocket = Pick<Socket, 'on' | 'to' | 'emit'> & { data: RoomMembership };
 
 export function addAvatarHandlers(socket: AvatarSocket, relay: SkinRelay) {
-  socket.on('avatar:skin', (payload: unknown, ack?: SkinAck) => {
+  socket.on('avatar:skin', (payload: unknown, ack?: unknown) => {
+    const reply: SkinAck = typeof ack === 'function' ? (ack as SkinAck) : () => {};
     const { roomId, seat } = socket.data;
     if (!roomId || !seat) {
-      ack?.({ ok: false, error: { code: 'NOT_IN_ROOM', message: 'Join a room before sharing a skin.', recoverable: true } });
+      reply({ ok: false, error: { code: 'NOT_IN_ROOM', message: 'Join a room before sharing a skin.', recoverable: true } });
       return;
     }
     const parsed = avatarSkinSchema.safeParse(payload);
     if (!parsed.success) {
-      ack?.({ ok: false, error: { code: 'INVALID_SKIN', message: 'Skin must be a JPEG of at most 256 KB.', recoverable: true } });
+      reply({ ok: false, error: { code: 'INVALID_SKIN', message: 'Skin must be a JPEG of at most 256 KB.', recoverable: true } });
       return;
     }
     relay.set(roomId, seat, parsed.data.jpeg);
     socket.to(roomId).emit('avatar:opponentSkin', { seat, jpeg: parsed.data.jpeg });
-    ack?.({ ok: true });
+    reply({ ok: true });
   });
 }
 
