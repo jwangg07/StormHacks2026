@@ -3,7 +3,7 @@ import { idleControls, MotionController, PracticeAdapter } from '@wb/motion';
 import type { MotionDiagnostics, MotionFrame } from '@wb/motion';
 import type { usePoseLandmarker } from './usePoseLandmarker';
 
-interface MotionSnapshot extends MotionDiagnostics {
+export interface MotionSnapshot extends MotionDiagnostics {
   stream: MediaStream | null;
   ready: boolean;
   counts: ReturnType<PracticeAdapter['snapshot']>;
@@ -147,3 +147,5 @@ export function useMotionControls(
     confirmReady,
   };
 }
+
+export type MotionControls = ReturnType<typeof useMotionControls>;
