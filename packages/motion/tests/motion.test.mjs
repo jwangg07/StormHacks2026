@@ -257,6 +257,32 @@ test('shoulder balance and head movement select a held left or right dodge', () 
   assert.equal(d.update(lean(1250, -0.35, -0.35)).dodge, 'right');
 });
 
+test('either hand can punch while holding a left or right dodge', () => {
+  for (const dodge of ['left', 'right']) {
+    for (const hand of ['left', 'right']) {
+      const d = new ActionDetector();
+      const sign = dodge === 'left' ? 1 : -1;
+      const lean = (timestamp, changes = {}) =>
+        features(timestamp, {
+          shoulderBalance: sign * 0.35,
+          headOffset: { x: sign * 0.35, y: 0, z: 0 },
+          ...changes,
+        });
+      d.update(lean(0));
+      d.update(lean(50));
+      assert.equal(d.update(lean(100)).dodge, dodge);
+      const frame = d.update(lean(150, { [hand]: hand === 'left' ? extended : rightExtended }));
+      assert.equal(frame.punch, hand);
+      assert.equal(frame.dodge, dodge);
+      assert.equal(
+        d.update(lean(250, { [hand]: hand === 'left' ? extended : rightExtended })).dodge,
+        dodge,
+        'dodge continues through punch recovery',
+      );
+    }
+  }
+});
+
 test('block remains latched through elbow noise and wide raised hands', () => {
   const d = new ActionDetector();
   for (let t = 0; t <= 150; t += 50) d.update(features(t, guardArms));

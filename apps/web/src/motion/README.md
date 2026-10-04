@@ -119,7 +119,8 @@ and a 90 ms exit delay prevent jitter; the first-person camera leans and rolls u
 the player re-centers. Right rolls clockwise and left rolls counterclockwise.
 Duck needs both head and shoulder
 drop, enters after 100 ms, uses a smaller exit threshold, expires at 800 ms, and
-requires 400 ms neutral to rearm. Attacks suppress duck and dodge during recovery.
+requires 400 ms neutral to rearm. Attacks suppress duck during recovery; left and right
+dodges can continue while punching.
 
 `/game` exposes guided calibration in a dialog, a live camera preview at the bottom left,
 and sensitivity, local feedback, counts, and developer diagnostics in the movement setup drawer.

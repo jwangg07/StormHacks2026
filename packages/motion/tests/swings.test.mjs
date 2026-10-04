@@ -151,7 +151,7 @@ test('hooks with a straight-looking launch emit one hook without an early jab', 
   }
 });
 
-test('a horizontal outward swing emits one hook through its hold and return', () => {
+test('a small wind-up followed by a horizontal swing emits one hook through its hold and return', () => {
   for (const hand of ['left', 'right']) {
     const sign = hand === 'left' ? 1 : -1;
     const d = new ActionDetector();
@@ -170,7 +170,8 @@ test('a horizontal outward swing emits one hook through its hold and return', ()
       f.arms[hand].restDistance = t ? 1 : 0;
       const result = d.update(f);
       if (result.punch) actions.push({ hand: result.punch, move: result.move });
-      if (t === 67) assert.equal(result.move, 'hook');
+      if (t <= 100) assert.equal(result.punch, undefined);
+      if (t === 134) assert.equal(result.move, 'hook');
     }
     assert.deepEqual(actions, [{ hand, move: 'hook' }]);
   }

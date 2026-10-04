@@ -251,7 +251,7 @@ export class ActionDetector {
       Math.sign(balance) === Math.sign(features.headOffset.x)
         ? leanHand
         : null;
-    if (attacking || this.duck) {
+    if (this.duck) {
       this.dodge = null;
       this.dodgeEnter = null;
       this.dodgeExit = null;

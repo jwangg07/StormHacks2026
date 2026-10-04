@@ -1,7 +1,7 @@
 import type { ArmFeatures, NormalizedFeatures } from './normalize';
 import type { Hand, PunchMove } from './types';
 export const MIN_PUNCH_SPEED = 1.25;
-export const MIN_PUNCH_TRAVEL = 0.18;
+export const MIN_PUNCH_TRAVEL = 0.22;
 export const MIN_STRAIGHT_SPEED = 1;
 const MIN_STRAIGHT_TRAVEL = 0.12;
 export const MIN_UPPERCUT_TRAVEL = 0.45;
@@ -99,6 +99,7 @@ export function recognizePunch(
       (Math.abs(path.x) >= travel &&
         Math.abs(path.x) >= Math.abs(path.y) * 1.25 &&
         (arm.imageElbowAngle < 135 ||
+          // Broad arcs remain hooks even when the elbow angle estimate looks straight.
           (Math.abs(path.x) >= 0.4 / sensitivity && radialGain < path.distance * 0.65))))
   )
     move = 'hook';

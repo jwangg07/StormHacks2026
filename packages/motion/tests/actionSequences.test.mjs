@@ -91,10 +91,12 @@ test('a small faster elbow movement in the covering arm cannot steal a developin
 });
 
 test('a small fast outward wrist displacement and noisy angle alone do not produce a jab', () => {
-  const d = new ActionDetector();
-  d.update(frame(0, 'left'));
-  const end = { wrist: p(0.84, 0.1), wristSpeed: 20, imageElbowAngle: 175, elbowAngle: 175 };
-  for (const t of [33, 66, 99, 132]) assert.equal(d.update(frame(t, 'left', end)).punch, undefined);
+  for (const angle of [95, 175]) {
+    const d = new ActionDetector();
+    d.update(frame(0, 'left'));
+    const end = { wrist: p(0.84, 0.1), wristSpeed: 20, imageElbowAngle: angle, elbowAngle: angle };
+    for (const t of [33, 66, 99, 132]) assert.equal(d.update(frame(t, 'left', end)).punch, undefined);
+  }
 });
 
 function cameraPose(timestamp, hand, move, fraction = 0, worldDepth = false) {
