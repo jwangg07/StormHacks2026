@@ -25,6 +25,98 @@ import type { PunchCue } from './boxingAnimation';
 import { OpponentFighter } from './OpponentFighter';
 import './firstPerson.css';
 
+const COUNTDOWN_STEP_MS = 1_140;
+
+function FightStartSequence({
+  connectionState,
+  countdownStartsAt,
+}: {
+  connectionState: ReturnType<typeof useMultiplayerFight>['connectionState'];
+  countdownStartsAt: number | null;
+}) {
+  const introAudio = useRef<HTMLAudioElement>(null);
+  const loopAudio = useRef<HTMLAudioElement>(null);
+  const introStarted = useRef(false);
+  const [cueTime, setCueTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (countdownStartsAt === null) return;
+    if (connectionState === 'COUNTDOWN') {
+      const timer = window.setInterval(() => setCueTime(Date.now()), 50);
+      return () => window.clearInterval(timer);
+    }
+    if (connectionState === 'FIGHTING') {
+      const remaining = Math.max(0, countdownStartsAt + COUNTDOWN_STEP_MS - Date.now());
+      const timer = window.setTimeout(() => setCueTime(Date.now()), remaining);
+      return () => window.clearTimeout(timer);
+    }
+  }, [connectionState, countdownStartsAt]);
+
+  useEffect(() => {
+    const intro = introAudio.current;
+    const loop = loopAudio.current;
+
+    if (connectionState === 'COUNTDOWN' && !introStarted.current) {
+      introStarted.current = true;
+      if (intro) {
+        intro.currentTime = 0;
+        void intro.play().catch(() => {
+          // Browsers can still deny audible autoplay despite the earlier setup interaction.
+        });
+      }
+      return;
+    }
+
+    if (connectionState === 'READY' || connectionState === 'CALIBRATING') {
+      introStarted.current = false;
+      if (intro) {
+        intro.pause();
+        intro.currentTime = 0;
+      }
+      if (loop) {
+        loop.pause();
+        loop.currentTime = 0;
+      }
+    }
+  }, [connectionState]);
+
+  const startLoop = () => {
+    const loop = loopAudio.current;
+    if (!loop) return;
+    loop.currentTime = 0;
+    void loop.play().catch(() => {
+      // Leave playback stopped if the browser revokes media permission.
+    });
+  };
+
+  const elapsed =
+    countdownStartsAt === null ? 0 : 3 * COUNTDOWN_STEP_MS - (countdownStartsAt - cueTime);
+  const cueIndex = Math.max(0, Math.min(2, Math.floor(elapsed / COUNTDOWN_STEP_MS)));
+  const countdownCue = connectionState === 'COUNTDOWN' ? String(3 - cueIndex) : null;
+  const fightCue =
+    connectionState === 'FIGHTING' &&
+    countdownStartsAt !== null &&
+    cueTime < countdownStartsAt + COUNTDOWN_STEP_MS;
+
+  return (
+    <>
+      <audio ref={introAudio} src="/fight-intro.mp3" preload="auto" onEnded={startLoop} />
+      <audio ref={loopAudio} src="/fight-loop.mp3" preload="auto" loop />
+      {countdownCue || fightCue ? (
+        <div
+          className="fp-fight-countdown"
+          data-fight={fightCue || undefined}
+          role="status"
+          aria-live="assertive"
+          aria-atomic="true"
+        >
+          <span key={countdownCue ?? 'fight'}>{countdownCue ?? 'FIGHT'}</span>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 const CAMERA_POSITION: [number, number, number] = [0, EYE_HEIGHT, -EYE_FORWARD];
 const CAMERA_ROTATION: [number, number, number] = [-0.2, 0, 0];
 const formatWorkoutClock = (seconds: number) =>
@@ -410,6 +502,11 @@ export function FirstPersonScreen() {
       </div>
       <div className="fp-film-grain" aria-hidden="true" />
 
+      <FightStartSequence
+        connectionState={fight.connectionState}
+        countdownStartsAt={fight.countdownStartsAt}
+      />
+
       {assignment ? (
         <section className="fp-health-hud" aria-label="Fighter health">
           <HealthBar label="YOU" hp={ownHealth} />
@@ -494,7 +591,10 @@ export function FirstPersonScreen() {
           {!fight.assignment && !calibrationOpen ? (
             <p className="fp-round-readout">
               ROUND {String(soloWorkout.round).padStart(2, '0')} <i />
-              {soloWorkout.started ? formatWorkoutClock(soloWorkout.secondsLeft) : 'THROW TO START'} <i />
+              {soloWorkout.started
+                ? formatWorkoutClock(soloWorkout.secondsLeft)
+                : 'THROW TO START'}{' '}
+              <i />
               {soloWorkout.punches} PUNCHES
             </p>
           ) : null}

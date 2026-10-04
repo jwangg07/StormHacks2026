@@ -33,6 +33,50 @@
   mix-blend-mode: multiply;
   pointer-events: none;
 }
+.fp-fight-countdown {
+  position: absolute;
+  z-index: 9;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.fp-fight-countdown span {
+  color: #f3d49c;
+  font:
+    900 clamp(9rem, 38vw, 28rem) / 0.75 'Barlow Condensed',
+    Impact,
+    sans-serif;
+  letter-spacing: -0.04em;
+  text-shadow:
+    0 5px 0 #63351f,
+    0 12px 35px #000,
+    0 0 80px rgb(218 135 66 / 55%);
+  animation: fp-countdown-strike 1.14s cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+.fp-fight-countdown[data-fight] span {
+  color: #f6c96d;
+  font-size: clamp(7rem, 24vw, 19rem);
+  letter-spacing: 0.02em;
+}
+@keyframes fp-countdown-strike {
+  0% {
+    opacity: 0;
+    transform: scale(1.65);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: scale(0.94);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
 .fp-hud {
   position: absolute;
   z-index: 5;

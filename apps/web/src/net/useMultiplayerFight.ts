@@ -23,6 +23,11 @@ export interface FightImpact {
   damage: number;
 }
 
+interface MatchCountdown {
+  matchId: string;
+  startsAt: number;
+}
+
 function inputFromMotion(matchId: string, sequence: number, frame: MotionFrame): GameInput {
   const clamp = (value: number) => Math.max(-2, Math.min(2, value));
   const head = {
@@ -56,6 +61,7 @@ export function useMultiplayerFight(motion: MotionControls) {
   const { socket, connectionState: lobbyState, assignment } = useMultiplayer();
   const assignmentRef = useRef(assignment);
   const [snapshot, setSnapshot] = useState<MatchSnapshot | null>(null);
+  const [countdownStartsAt, setCountdownStartsAt] = useState<number | null>(null);
   const [opponentInput, setOpponentInput] = useState<OpponentInputPayload | null>(null);
   const [lastImpact, setLastImpact] = useState<FightImpact | null>(null);
   const matchId = useRef<string | null>(null);
@@ -78,7 +84,10 @@ export function useMultiplayerFight(motion: MotionControls) {
 
   useEffect(() => {
     socketRef.current = socket;
-    socket.on('match.countdown', () => setMatchState('COUNTDOWN'));
+    socket.on('match.countdown', (countdown: MatchCountdown) => {
+      setCountdownStartsAt(countdown.startsAt);
+      setMatchState('COUNTDOWN');
+    });
     socket.on('match.started', (initial: MatchSnapshot) => {
       active.current = true;
       setSnapshot(initial);
@@ -96,7 +105,10 @@ export function useMultiplayerFight(motion: MotionControls) {
     socket.on('game.opponentInput', receiveOpponentInput);
     socket.on('game.hit', setLastImpact);
     socket.on('game.block', setLastImpact);
-    socket.on('match.countdownCancelled', () => setMatchState(null));
+    socket.on('match.countdownCancelled', () => {
+      setCountdownStartsAt(null);
+      setMatchState(null);
+    });
     socket.on('match.finished', (finalSnapshot: MatchSnapshot) => {
       active.current = false;
       setSnapshot(finalSnapshot);
@@ -174,6 +186,7 @@ export function useMultiplayerFight(motion: MotionControls) {
     connectionState,
     assignment,
     snapshot,
+    countdownStartsAt,
     lastImpact,
     opponentInput: opponentInput?.input.matchId === assignment?.matchId ? opponentInput : null,
   };

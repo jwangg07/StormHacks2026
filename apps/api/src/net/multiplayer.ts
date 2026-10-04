@@ -339,7 +339,10 @@ export class MultiplayerCoordinator {
     )
       return;
     room.countdownStarted = true;
-    const startsAt = Date.now() + 3_000;
+    // Keep the authoritative start aligned with the client's 3, 2, 1 cadence.
+    // Each cue stays on screen for 1.14 seconds before the fight begins.
+    const countdownDurationMs = 3 * 1_140;
+    const startsAt = Date.now() + countdownDurationMs;
     this.io.to(room.id).emit('match.countdown', { matchId: room.match.state.id, startsAt });
     const timer = setTimeout(() => {
       if (!this.rooms.has(room.id)) return;
@@ -352,7 +355,7 @@ export class MultiplayerCoordinator {
       }
       if (!room.match.start()) return;
       this.io.to(room.id).emit('match.started', this.snapshot(room.match));
-    }, 3_000);
+    }, countdownDurationMs);
     timer.unref();
   }
 

@@ -215,7 +215,7 @@ describe('minimal two-player flow', () => {
       socket.clientEmit('room.ready', { ready: true });
     }
     expect(a.messages('match.countdown')).toHaveLength(1);
-    await vi.advanceTimersByTimeAsync(3_000);
+    await vi.advanceTimersByTimeAsync(3_420);
     expect(a.messages('match.started')).toHaveLength(1);
     expect(b.messages('match.started')).toHaveLength(1);
 
@@ -257,7 +257,7 @@ describe('minimal two-player flow', () => {
     expect(a.messages('match.countdown')).toHaveLength(1);
 
     a.clientEmit('room.calibrated', { calibrated: false });
-    await vi.advanceTimersByTimeAsync(3_000);
+    await vi.advanceTimersByTimeAsync(3_420);
     expect(a.messages('match.started')).toHaveLength(0);
     expect(a.messages('match.countdownCancelled')).toHaveLength(1);
 
@@ -265,7 +265,7 @@ describe('minimal two-player flow', () => {
     expect(a.messages('match.countdown')).toHaveLength(1);
     a.clientEmit('room.ready', { ready: true });
     expect(a.messages('match.countdown')).toHaveLength(2);
-    await vi.advanceTimersByTimeAsync(3_000);
+    await vi.advanceTimersByTimeAsync(3_420);
     expect(a.messages('match.started')).toHaveLength(1);
     expect(b.messages('match.started')).toHaveLength(1);
     coordinator.close();
