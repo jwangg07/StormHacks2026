@@ -41,6 +41,92 @@ const punch = {
   restDistance: 0.5,
   reach: 0.65,
 };
+
+test('compact camera jabs accept partial elbow alignment from chest and comfortable guard', () => {
+  for (const hand of ['left', 'right'])
+    for (const height of [0.3, -0.25])
+      for (const sensitivity of [0.7, 1, 1.3]) {
+        const sign = hand === 'left' ? 1 : -1;
+        const d = new ActionDetector(sensitivity);
+        const start = {
+          elbow: point(sign * 0.9, height + 0.37),
+          wrist: point(sign * 0.65, height),
+          projectedForearm: 0.4,
+        };
+        d.update(features(0, hand === 'left' ? start : {}, hand === 'right' ? start : {}));
+        const end = {
+          ...start,
+          elbow: point(sign * 0.85, height + 0.2),
+          wrist: point(sign * 0.66, height - 0.03),
+        };
+        const frame = d.update(
+          features(100, hand === 'left' ? end : {}, hand === 'right' ? end : {}),
+        );
+        assert.equal(frame.punch, hand, `${hand}, height ${height}, sensitivity ${sensitivity}`);
+        assert.equal(frame.move, hand === 'left' ? 'jab' : 'cross');
+        for (let t = 150; t <= 350; t += 50)
+          assert.equal(
+            d.update(features(t, hand === 'left' ? start : {}, hand === 'right' ? start : {}))
+              .punch,
+            undefined,
+            'recoil never becomes another attack',
+          );
+      }
+});
+
+test('moderate compact elbow extensions respond while genuinely slow ones remain idle', () => {
+  for (const hand of ['left', 'right'])
+    for (const duration of [150, 450]) {
+      const sign = hand === 'left' ? 1 : -1;
+      const d = new ActionDetector();
+      const actions = [];
+      for (let t = 0; t <= duration; t += 50) {
+        const fraction = t / duration;
+        const arm = {
+          elbow: point(sign * (0.9 - fraction * 0.05), 0.67 - fraction * 0.17),
+          wrist: point(sign * 0.65, 0.3),
+          projectedForearm: 0.4,
+        };
+        const frame = d.update(
+          features(t, hand === 'left' ? arm : {}, hand === 'right' ? arm : {}),
+        );
+        if (frame.punch) actions.push({ hand: frame.punch, move: frame.move });
+      }
+      assert.deepEqual(
+        actions,
+        duration === 150 ? [{ hand, move: hand === 'left' ? 'jab' : 'cross' }] : [],
+      );
+    }
+});
+
+test('forward foreshortening with a moving elbow does not require visible wrist travel', () => {
+  for (const hand of ['left', 'right']) {
+    const sign = hand === 'left' ? 1 : -1;
+    const d = new ActionDetector();
+    const start = { elbow: point(sign * 0.8, 0.9), projectedForearm: 0.6 };
+    d.update(features(0, hand === 'left' ? start : {}, hand === 'right' ? start : {}));
+    const end = { ...start, elbow: point(sign * 0.8, 0.7), projectedForearm: 0.53 };
+    const frame = d.update(features(100, hand === 'left' ? end : {}, hand === 'right' ? end : {}));
+    assert.equal(frame.punch, hand);
+    assert.equal(frame.move, hand === 'left' ? 'jab' : 'cross');
+    assert.equal(
+      d.update(features(150, hand === 'left' ? start : {}, hand === 'right' ? start : {})).punch,
+      undefined,
+    );
+  }
+});
+
+test('short clear outward extensions register as straights without a long lateral sweep', () => {
+  for (const hand of ['left', 'right']) {
+    const sign = hand === 'left' ? 1 : -1;
+    const d = new ActionDetector();
+    d.update(features(0));
+    const end = { wrist: point(sign * 0.87, 0.3), imageElbowAngle: 145, elbowAngle: 145 };
+    const frame = d.update(features(100, hand === 'left' ? end : {}, hand === 'right' ? end : {}));
+    assert.equal(frame.punch, hand);
+    assert.equal(frame.move, hand === 'left' ? 'jab' : 'cross');
+  }
+});
 function confirmPunch(detector, input) {
   const frame = detector.update(input);
   return frame.punch ? frame : detector.update({ ...input, timestamp: input.timestamp + 50 });
@@ -121,7 +207,13 @@ test('the faster hand wins even when the other hand has much larger elbow extens
     const d = new ActionDetector();
     d.update(features(0));
     const sign = hand === 'left' ? 1 : -1;
-    const fast = { wrist: point(sign * 1.05, 0.3), reach: 0.63, restDistance: 0.4 };
+    const fast = {
+      wrist: point(sign * 1.05, 0.3),
+      reach: 0.63,
+      restDistance: 0.4,
+      elbowAngle: 135,
+      imageElbowAngle: 135,
+    };
     const noisy = {
       wrist: point(-sign * 0.88, 0.3),
       reach: 0.48,
@@ -168,7 +260,7 @@ test('forward camera punches can use a fast elbow and shrinking forearm when wor
   assert.equal(frame.move, 'jab');
 });
 
-test('deliberate compact jabs register once after brief classification even if the hand has stopped', () => {
+test('a horizontal bent-arm movement identifies a hook instead of defaulting to a jab', () => {
   const d = new ActionDetector();
   d.update(features(0));
   const attack = {
@@ -178,37 +270,36 @@ test('deliberate compact jabs register once after brief classification even if t
     reach: 0.48,
     restDistance: 0.24,
   };
-  assert.equal(d.update(features(33, attack)).punch, undefined);
+  assert.equal(d.update(features(33, attack)).move, 'hook');
   const frame = d.update(features(66, attack));
-  assert.equal(frame.punch, 'left');
-  assert.equal(frame.move, 'jab');
+  assert.equal(frame.punch, undefined);
   assert.equal(d.update(features(99, attack)).punch, undefined);
 });
 
-test('credible image jabs tolerate modest world elbow underestimation', () => {
+test('a bent horizontal sweep remains a hook despite a conflicting world elbow estimate', () => {
   const d = new ActionDetector();
   d.update(features(0, { depthReliable: true }));
   assert.equal(
     confirmPunch(
       d,
       features(67, {
-        wrist: point(0.89, 0.3),
+        wrist: point(0.95, 0.3),
         depthReliable: true,
         elbowAngle: 103,
         imageElbowAngle: 116,
         reach: 0.45,
         restDistance: 0.24,
       }),
-    ).punch,
-    'left',
+    ).move,
+    'hook',
   );
 });
 
 test('slow extensions below the velocity boundary never become jabs', () => {
   for (const sensitivity of [0.7, 1, 1.3]) {
     const d = new ActionDetector(sensitivity);
-    for (let t = 0; t <= 600; t += 50) {
-      const fraction = t / 600;
+    for (let t = 0; t <= 1200; t += 50) {
+      const fraction = t / 1200;
       const frame = d.update(
         features(t, {
           wrist: point(0.65 + fraction * 0.6, 0.3),
@@ -221,7 +312,7 @@ test('slow extensions below the velocity boundary never become jabs', () => {
       assert.equal(frame.punch, undefined, 'large but slow extension is not a strike');
     }
   }
-  assert.ok(MIN_PUNCH_SPEED >= 2);
+  assert.ok(MIN_PUNCH_SPEED > 0.6, 'onset rejects deliberate slow movements');
 });
 
 test('lowering a held block is not a punch even when fast and the elbows open', () => {
@@ -283,7 +374,7 @@ test('alternating attacks ninety-nine milliseconds apart are captured during the
   const d = new ActionDetector();
   d.update(features(0));
   const actions = [];
-  for (let t = 33; t <= 1023; t += 33) {
+  for (let t = 33; t <= 990; t += 33) {
     const index = Math.floor((t - 33) / 99),
       phase = (t - 33) % 99;
     const hand = index % 2 ? 'right' : 'left';
@@ -389,7 +480,7 @@ test('returning to face-level guard rearms after a punch', () => {
     'left',
   );
 });
-test('a recoil and brief pass through guard do not register a second punch', () => {
+test('recoil does not attack and a brief recovery allows a deliberate new punch', () => {
   const d = new ActionDetector();
   const extended = { ...punch, elbowAngle: 175, imageElbowAngle: 175, restDistance: 1 };
   d.update(features(0));
@@ -398,7 +489,7 @@ test('a recoil and brief pass through guard do not register a second punch', () 
     assert.equal(d.update(features(t, extended)).punch, undefined);
   d.update(features(650));
   d.update(features(700));
-  assert.equal(d.update(features(750, extended)).punch, undefined);
+  assert.equal(d.update(features(750, extended)).punch, 'left');
   for (let t = 800; t <= 1100; t += 50) d.update(features(t));
   assert.equal(d.update(features(1250, extended)).punch, 'left');
 });
@@ -427,13 +518,13 @@ test('forward punches can shorten projected reach when extension and image fores
   for (let t = 250; t <= 900; t += 50) assert.equal(d.update(features(t, end)).punch, undefined);
 });
 
-test('moderate-speed straight extensions and fast short fidgets are not jabs', () => {
+test('short wrist fidgets are not jabs at any supported sensitivity', () => {
   for (const hand of ['left', 'right'])
     for (const sensitivity of [0.7, 1, 1.3]) {
       for (const [travel, elapsed] of [
-        [0.3, 120],
-        [0.18, 33],
-        [0.2, 67],
+        [0.12, 120],
+        [0.12, 33],
+        [0.12, 67],
       ]) {
         const sign = hand === 'left' ? 1 : -1;
         const d = new ActionDetector(sensitivity);
@@ -456,7 +547,7 @@ test('moderate-speed straight extensions and fast short fidgets are not jabs', (
     }
 });
 
-test('moderate depth and elbow extension cannot bypass the straight speed requirement', () => {
+test('moderate forward pushes with visible foreshortening respond without a delayed label', () => {
   for (const hand of ['left', 'right'])
     for (const depth of [true, false]) {
       const sign = hand === 'left' ? 1 : -1;
@@ -478,7 +569,7 @@ test('moderate depth and elbow extension cannot bypass the straight speed requir
       for (const t of [100, 133, 166, 199])
         assert.equal(
           d.update(features(t, hand === 'left' ? end : {}, hand === 'right' ? end : {})).punch,
-          undefined,
+          t === 100 ? hand : undefined,
         );
     }
 });
@@ -554,6 +645,39 @@ function pose(timestamp, fraction = 0, hand = 'left', includeWorld = true) {
   };
   return createPoseSample(points(image), timestamp, 480, 480, includeWorld ? points(world) : []);
 }
+
+test('compact landmark jabs with imperfect alignment survive normalization at both camera rates', () => {
+  const compactPose = (t, fraction, hand, scale) => {
+    const s = pose(t, 0, hand, false);
+    const sign = hand === 'left' ? 1 : -1;
+    s.frame.landmarks[`${hand}Elbow`] = point(
+      0.5 + sign * (0.26 + fraction * 0.035),
+      0.6 - fraction * 0.05,
+    );
+    s.frame.landmarks[`${hand}Wrist`] = point(0.5 + sign * 0.16, 0.52 - fraction * 0.025);
+    const input = Array.from({ length: 33 }, () => point(0.5, 0.5, 0));
+    for (const [name, p] of Object.entries(s.frame.landmarks))
+      input[POSE_LANDMARKS[name]] = point(0.5 + (p.x - 0.5) * scale, 0.5 + (p.y - 0.5) * scale);
+    return createPoseSample(input, t, 480, 480);
+  };
+  for (const hand of ['left', 'right'])
+    for (const interval of [33, 67])
+      for (const scale of [0.7, 1, 1.2]) {
+        const c = new MotionController();
+        for (let t = 0; t <= 3100; t += 50) c.update(compactPose(t, 0, hand, scale));
+        const actions = [];
+        for (let i = 1; i <= 15; i++) {
+          const fraction = i <= 8 ? Math.min(1, (i * interval) / 150) : 0;
+          const f = c.update(compactPose(3100 + i * interval, fraction, hand, scale));
+          if (f.punch) actions.push({ hand: f.punch, move: f.move });
+        }
+        assert.deepEqual(
+          actions,
+          [{ hand, move: hand === 'left' ? 'jab' : 'cross' }],
+          `${hand}, interval ${interval}, scale ${scale}`,
+        );
+      }
+});
 test('front-camera landmark trajectories detect each hand at 15Hz through normalization', () => {
   for (const hand of ['left', 'right']) {
     const c = new MotionController();

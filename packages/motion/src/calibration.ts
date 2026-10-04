@@ -72,6 +72,10 @@ export class Calibration {
     }
     const p = sample.aspectLandmarks,
       width = distance2(p.leftShoulder, p.rightShoulder);
+    if (!p.leftWrist || !p.rightWrist || !p.leftElbow || !p.rightElbow) {
+      this.invalidate();
+      return this.snapshot();
+    }
     if (
       width < 0.08 ||
       elbowAngle(sample, 'left') > 145 ||
@@ -198,7 +202,7 @@ export class Calibration {
     const messages = {
       leftPunch: 'Throw one controlled left punch, then bring your fist back near your chest.',
       rightPunch: 'Throw one controlled right punch, then bring your fist back near your chest.',
-      guard: 'Raise both hands near your face with elbows bent.',
+      guard: 'Raise both fists to upper chest or shoulder height to block.',
     };
     this.status = {
       ...this.status,

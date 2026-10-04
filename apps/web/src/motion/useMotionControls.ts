@@ -41,17 +41,20 @@ export function useMotionControls(
       ready: confirmed.current,
       controls,
       counts: practice.current.snapshot(),
-      feedback: controls.dodge
-        ? `Dodge ${controls.dodge}`
-        : controls.guard
-          ? 'Block'
-          : controls.duck
-            ? 'Duck'
-            : lastMove.current && performance.now() - lastMove.current.timestamp < 1200
-              ? lastMove.current.label
-              : last && performance.now() - last.timestamp < 1200
-                ? labels[last.action]
-                : 'Neutral',
+      feedback:
+        lastMove.current && performance.now() - lastMove.current.timestamp < 400
+          ? lastMove.current.label
+          : controls.dodge
+            ? `Dodge ${controls.dodge}`
+            : controls.guard
+              ? 'Block'
+              : controls.duck
+                ? 'Duck'
+                : lastMove.current && performance.now() - lastMove.current.timestamp < 1200
+                  ? lastMove.current.label
+                  : last && performance.now() - last.timestamp < 1200
+                    ? labels[last.action]
+                    : 'Neutral',
     });
   }, []);
   useEffect(() => {

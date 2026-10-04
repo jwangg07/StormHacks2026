@@ -58,7 +58,7 @@ export function CalibrationDialog({
               : calibration?.nextCheck === 'rightPunch'
                 ? 'Throw one controlled right punch, then bring your fist back near your chest.'
                 : calibration?.nextCheck === 'guard'
-                  ? 'Bring both hands up near your face and hold your guard.'
+                  ? 'Raise both fists to upper chest or shoulder height to block. You can keep your elbows relaxed.'
                   : calibration?.phase === 'ready'
                     ? 'Keep your upper body in view. The ring opens automatically.'
                     : 'Stand in a relaxed neutral position with elbows bent and fists near your chest, below your face.';

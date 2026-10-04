@@ -114,7 +114,8 @@ test('overlap correction feeds only the actual attacking hand through calibratio
     const frame = controller.update(tracker.update(sample(time, x, 0.4, swap)));
     if (frame.punch) actions.push({ hand: frame.punch, move: frame.move });
   }
-  assert.deepEqual(actions, [{ hand: 'left', move: 'jab' }]);
+  // The wrist sweeps inward across the image at a constant height: a hook.
+  assert.deepEqual(actions, [{ hand: 'left', move: 'hook' }]);
 });
 
 test('identity correction resets on loss or a gap rather than guessing from stale motion', () => {

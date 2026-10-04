@@ -13,6 +13,8 @@ import {
 
 export const MOTION_FEATURE_VERSION = 3;
 export interface ArmFeatures {
+  /** A missing wrist disables this hand only, without inventing a motion sample. */
+  tracked?: boolean;
   wrist: Landmark;
   shoulder: Landmark;
   elbow?: Landmark;
@@ -71,8 +73,8 @@ export class FeatureNormalizer {
     const old = this.previous;
     const dt = old ? sample.frame.timestamp - old.timestamp : 0;
     const continuous = dt > 0 && dt <= 200;
-    const xyAlpha = continuous ? 1 - Math.exp(-dt / 20) : 1;
-    const zAlpha = continuous ? 1 - Math.exp(-dt / 80) : 1;
+    const xyAlpha = continuous ? 1 - Math.exp(-dt / 12) : 1;
+    const zAlpha = continuous ? 1 - Math.exp(-dt / 40) : 1;
     const headAlpha = continuous
       ? 1 - Math.exp(-dt / clamp(35 + baseline.jitter * 500, 35, 70))
       : 1;
@@ -85,18 +87,34 @@ export class FeatureNormalizer {
     }
     const arms = {} as NormalizedFeatures['arms'];
     for (const hand of ['left', 'right'] as const) {
+      const shoulder = relative(project(points[`${hand}Shoulder`]));
+      if (!points[`${hand}Wrist`]) {
+        arms[hand] = {
+          tracked: false,
+          shoulder,
+          wrist: { ...shoulder },
+          elbowAngle: 0,
+          imageElbowAngle: 0,
+          projectedForearm: 0,
+          wristSpeed: 0,
+          forwardSpeed: 0,
+          restDistance: Infinity,
+          reach: 0,
+          depthReliable: false,
+        };
+        continue;
+      }
       const wrist = relative(project(points[`${hand}Wrist`]));
       const world = reliableWorldArm(sample, hand);
       if (world) wrist.z = clamp((world.wrist.z - world.shoulder.z) / world.width, -2.5, 2.5);
-      const shoulder = relative(project(points[`${hand}Shoulder`]));
-      const elbow = relative(project(points[`${hand}Elbow`]));
-      const before = old?.arms[hand];
+      const elbow = points[`${hand}Elbow`] ? relative(project(points[`${hand}Elbow`])) : undefined;
+      const before = old?.arms[hand].tracked === false ? undefined : old?.arms[hand];
       if (continuous && before) {
         for (const axis of ['x', 'y'] as const) {
           const previous = before.wrist[axis] - before.shoulder[axis];
           wrist[axis] =
             shoulder[axis] + previous + (wrist[axis] - shoulder[axis] - previous) * xyAlpha;
-          if (before.elbow) {
+          if (before.elbow && elbow) {
             const oldElbow = before.elbow[axis] - before.shoulder[axis];
             elbow[axis] =
               shoulder[axis] + oldElbow + (elbow[axis] - shoulder[axis] - oldElbow) * xyAlpha;
@@ -105,24 +123,23 @@ export class FeatureNormalizer {
         if (before.depthReliable === !!world)
           wrist.z = before.wrist.z + (wrist.z - before.wrist.z) * zAlpha;
       }
-      const angle = elbowAngle(sample, hand);
+      const angle = elbow ? elbowAngle(sample, hand) : 0;
       const smoothedAngle =
         continuous && before && before.depthReliable === !!world
           ? before.elbowAngle + (angle - before.elbowAngle) * xyAlpha
           : angle;
       // Keep image evidence continuous when estimated world geometry comes and goes.
-      const imageAngle = jointAngle(
-        points[`${hand}Shoulder`],
-        points[`${hand}Elbow`],
-        points[`${hand}Wrist`],
-      );
+      const imageAngle = elbow
+        ? jointAngle(points[`${hand}Shoulder`], points[`${hand}Elbow`], points[`${hand}Wrist`])
+        : 0;
       const imageElbowAngle =
         continuous && before
           ? before.imageElbowAngle + (imageAngle - before.imageElbowAngle) * xyAlpha
           : imageAngle;
-      const forearm =
-        (distance2(points[`${hand}Elbow`], points[`${hand}Wrist`]) * scale) /
-        baseline.shoulderWidth;
+      const forearm = elbow
+        ? (distance2(points[`${hand}Elbow`], points[`${hand}Wrist`]) * scale) /
+          baseline.shoulderWidth
+        : 0;
       const projectedForearm =
         continuous && before
           ? before.projectedForearm + (forearm - before.projectedForearm) * xyAlpha
@@ -135,6 +152,7 @@ export class FeatureNormalizer {
             ? before.worldReach + (reach - before.worldReach) * xyAlpha
             : reach;
       arms[hand] = {
+        tracked: true,
         wrist,
         shoulder,
         elbow,

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadMotion } from './loadMotion.mjs';
 
-const { ActionDetector, PUNCH_CLASSIFICATION_MS } = await loadMotion('detectors');
+const { ActionDetector } = await loadMotion('detectors');
 const { MotionController } = await loadMotion('controller');
 const { createPoseSample, POSE_LANDMARKS } = await loadMotion('pose');
 const p = (x, y, z = 0) => ({ x, y, z, visibility: 1 });
@@ -45,14 +45,14 @@ function features(timestamp, hand = 'left', degrees = 0, radius = 0.8) {
     arms,
   };
 }
-test('bent-arm wide and diagonal swings detect both hands without elbow extension', () => {
+test('bent-arm vertical rises are uppercuts and lateral or diagonal sweeps are hooks', () => {
   for (const hand of ['left', 'right'])
     for (const angle of [-60, 60, -170]) {
       const d = new ActionDetector();
       d.update(features(0, hand));
       const frame = d.update(features(200, hand, angle));
       assert.equal(frame.punch, hand);
-      assert.equal(frame.move, 'hook');
+      assert.equal(frame.move, angle === -60 ? 'uppercut' : 'hook');
     }
 });
 test('an outward rising bent-arm swing is an uppercut', () => {
@@ -97,12 +97,15 @@ test('compact bent-arm sweeps are hooks without a wide exaggerated arc', () => {
   for (const hand of ['left', 'right']) {
     const d = new ActionDetector();
     d.update(features(0, hand));
-    const f = features(66, hand, -22);
+    const f = features(66, hand);
+    f.arms[hand].wrist = p(hand === 'left' ? 0.9 : -0.9, 0.3);
+    f.arms[hand].reach = Math.hypot(0.4, 0.3);
+    f.arms[hand].restDistance = 0.3;
     assert.equal(d.update(f).move, 'hook');
   }
 });
 
-test('rising straight punches from guard and diagonal chest jabs are not uppercuts', () => {
+test('dominant vertical travel identifies an uppercut even when the elbow opens', () => {
   for (const hand of ['left', 'right'])
     for (const fromGuard of [true, false]) {
       const sign = hand === 'left' ? 1 : -1;
@@ -121,7 +124,7 @@ test('rising straight punches from guard and diagonal chest jabs are not uppercu
       d.update(start);
       const frame = d.update(end);
       assert.equal(frame.punch, hand);
-      assert.equal(frame.move, hand === 'left' ? 'jab' : 'cross');
+      assert.equal(frame.move, fromGuard ? (hand === 'left' ? 'jab' : 'cross') : 'uppercut');
     }
 });
 test('hooks with a straight-looking launch emit one hook without an early jab', () => {
@@ -143,13 +146,12 @@ test('hooks with a straight-looking launch emit one hook without an early jab', 
       f.arms[hand].restDistance = timestamp ? 1 : 0;
       const result = d.update(f);
       if (result.punch) actions.push({ hand: result.punch, move: result.move });
-      if (timestamp < PUNCH_CLASSIFICATION_MS) assert.equal(result.punch, undefined);
     }
     assert.deepEqual(actions, [{ hand, move: 'hook' }]);
   }
 });
 
-test('a short outward hook wind-up held past confirmation does not produce a jab', () => {
+test('a horizontal outward swing emits one hook through its hold and return', () => {
   for (const hand of ['left', 'right']) {
     const sign = hand === 'left' ? 1 : -1;
     const d = new ActionDetector();
@@ -168,7 +170,7 @@ test('a short outward hook wind-up held past confirmation does not produce a jab
       f.arms[hand].restDistance = t ? 1 : 0;
       const result = d.update(f);
       if (result.punch) actions.push({ hand: result.punch, move: result.move });
-      if (t <= 100) assert.equal(result.punch, undefined);
+      if (t === 67) assert.equal(result.move, 'hook');
     }
     assert.deepEqual(actions, [{ hand, move: 'hook' }]);
   }
@@ -195,24 +197,24 @@ test('fast small movements cannot become attacks after the classification window
       }
     }
 });
-test('tracking invalidation clears a punch waiting for classification', () => {
+test('tracking invalidation never replays an already detected swing', () => {
   const d = new ActionDetector();
   d.update(features(0));
-  assert.equal(d.update(features(33, 'left', -25)).punch, undefined);
+  assert.equal(d.update(features(33, 'left', -60)).punch, 'left');
   d.invalidate();
-  for (const t of [66, 99, 132]) assert.equal(d.update(features(t, 'left', -25)).punch, undefined);
+  for (const t of [66, 99, 132]) assert.equal(d.update(features(t, 'left', -60)).punch, undefined);
 });
-test('a held swing is one-shot and needs return to rest before another swing', () => {
+test('a held swing is one shot and a pause allows a new movement without a strict neutral pose', () => {
   const d = new ActionDetector();
   d.update(features(0));
   assert.equal(d.update(features(150, 'left', 60)).punch, 'left');
   for (let t = 200; t <= 800; t += 50)
     assert.equal(d.update(features(t, 'left', 60)).punch, undefined);
-  assert.equal(d.update(features(900, 'left', 120)).punch, undefined);
+  assert.equal(d.update(features(900, 'left', 120)).punch, 'left');
   for (let t = 1000; t <= 1200; t += 50) d.update(features(t));
   assert.equal(d.update(features(1300, 'left', -60)).punch, 'left');
 });
-test('slow broad motion, short jitter, and pulling an arm inward do not count as swings', () => {
+test('slow broad motion and short jitter do not count; clear inward travel is a hook', () => {
   const slow = new ActionDetector();
   for (let i = 0; i <= 20; i++)
     assert.equal(slow.update(features(i * 100, 'left', i * 3)).punch, undefined);
@@ -222,7 +224,7 @@ test('slow broad motion, short jitter, and pulling an arm inward do not count as
     assert.equal(jitter.update(features(t, 'left', Math.sin(t) * 8)).punch, undefined);
   const retract = new ActionDetector();
   retract.update(features(0));
-  assert.equal(retract.update(features(100, 'left', 60, 0.3)).punch, undefined);
+  assert.equal(retract.update(features(100, 'left', 60, 0.3)).move, 'hook');
 });
 test('quick guard raises do not count as swings', () => {
   const d = new ActionDetector();

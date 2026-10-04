@@ -1,48 +1,38 @@
 import type { NormalizedFeatures } from './normalize';
-import type { Hand, MotionFrame, PunchMove } from './types';
-import { distance2 } from './geometry';
-import { elbowTravel, recognizePunch, wristTravel } from './punchRecognition';
+import type { Hand, MotionFrame } from './types';
+import {
+  jointTravel,
+  movingJoint,
+  MIN_PUNCH_SPEED,
+  MIN_STRAIGHT_SPEED,
+  recognizePunch,
+  wristTravel,
+  type MotionJoint,
+} from './punchRecognition';
 export { MIN_PUNCH_SPEED } from './punchRecognition';
-
-export const PUNCH_COOLDOWN_MS = 160;
-export const PUNCH_COMBO_GAP_MS = 60;
-export const PUNCH_CLASSIFICATION_MS = 60;
-const PUNCH_REARM_MS = 80;
-type PunchCandidate = { hand: Hand; move: PunchMove; speed: number; score: number };
-interface PendingPunch {
+export const PUNCH_COOLDOWN_MS = 180;
+export const PUNCH_COMBO_GAP_MS = 40;
+const QUIET_MS = 150;
+type Stroke = {
   origin: NormalizedFeatures;
-  candidate: PunchCandidate;
-  seenAt: number;
-  completed: boolean;
   peak: NormalizedFeatures;
-}
+  joint: MotionJoint;
+  emitted: boolean;
+  quietSince: number | null;
+};
+type Recovery = { x: number; y: number; z: number; joint: MotionJoint; quietSince: number | null };
 export interface PunchDiagnostic {
-  status: 'return-to-rest' | 'cooldown' | 'need-extension' | 'need-motion' | 'detected';
-  extension: number;
-  imageSpeed: number;
-  forwardSpeed: number;
-  swingArc: number;
+  status: 'return-to-rest' | 'cooldown' | 'need-motion' | 'detected';
+  speed: number;
 }
-const emptyDiagnostic = (): PunchDiagnostic => ({
-  status: 'return-to-rest',
-  extension: 0,
-  imageSpeed: 0,
-  forwardSpeed: 0,
-  swingArc: 0,
-});
+const emptyDiagnostic = (): PunchDiagnostic => ({ status: 'need-motion', speed: 0 });
 export class ActionDetector {
-  private history: NormalizedFeatures[] = [];
-  private armed: Record<Hand, boolean> = { left: false, right: false };
-  private armedAt: Record<Hand, number> = { left: Infinity, right: Infinity };
-  private needsRearm: Record<Hand, boolean> = { left: false, right: false };
-  private rearmSince: Record<Hand, number | null> = { left: null, right: null };
-  private punchAt = -Infinity;
+  private previous: NormalizedFeatures | null = null;
+  private strokes: Record<Hand, Stroke | null> = { left: null, right: null };
+  private recovering: Record<Hand, Recovery | null> = { left: null, right: null };
   private handPunchAt: Record<Hand, number> = { left: -Infinity, right: -Infinity };
-  private pending: Record<Hand, PendingPunch | null> = { left: null, right: null };
-  private recovery: Record<Hand, { origin: NormalizedFeatures; peak: NormalizedFeatures } | null> =
-    { left: null, right: null };
+  private punchAt = -Infinity;
   private guard = false;
-  private guardEnter: number | null = null;
   private guardExit: number | null = null;
   private duck = false;
   private duckEnter: number | null = null;
@@ -58,194 +48,166 @@ export class ActionDetector {
     right: emptyDiagnostic(),
   };
   constructor(private sensitivity = 1) {}
-
   update(features: NormalizedFeatures): MotionFrame {
     const now = features.timestamp;
-    const last = this.history.at(-1);
-    if (last && now <= last.timestamp) return this.frame(features);
-    if (last && now - last.timestamp > 200) this.invalidate();
-    this.history = this.history.filter((frame) => now - frame.timestamp <= 300);
-    for (const hand of ['left', 'right'] as const) {
-      const arm = features.arms[hand];
-      const atRest =
-        arm.restDistance < 0.65 || distance2(arm.wrist, features.head) <= 0.8 * this.sensitivity;
-      if (!this.armed[hand]) {
-        const recovery = this.recovery[hand];
-        const launch = recovery?.origin.arms[hand],
-          peak = recovery?.peak.arms[hand];
-        const returned =
-          launch &&
-          peak &&
-          ((wristTravel(launch, peak).distance >= 0.16 &&
-            wristTravel(peak, arm).distance >= 0.1 &&
-            wristTravel(launch, arm).distance <= wristTravel(launch, peak).distance * 0.65) ||
-            (launch.depthReliable &&
-              peak.depthReliable &&
-              arm.depthReliable &&
-              launch.wrist.z - peak.wrist.z >= 0.12 &&
-              arm.wrist.z - peak.wrist.z >= 0.06 &&
-              launch.wrist.z - arm.wrist.z <= (launch.wrist.z - peak.wrist.z) * 0.65) ||
-            (launch.elbow &&
-              peak.elbow &&
-              arm.elbow &&
-              elbowTravel(launch, peak) >= 0.12 &&
-              elbowTravel(peak, arm) >= 0.08 &&
-              elbowTravel(launch, arm) <= elbowTravel(launch, peak) * 0.65 &&
-              arm.projectedForearm >= peak.projectedForearm + 0.06));
-        if (returned) {
-          this.armed[hand] = true;
-          this.armedAt[hand] = now;
-          this.needsRearm[hand] = false;
-          this.recovery[hand] = null;
-        } else if ((!this.needsRearm[hand] || atRest) && arm.wristSpeed < 1.2) {
-          this.rearmSince[hand] ??= now;
-          if (!this.needsRearm[hand] || now - this.rearmSince[hand] >= PUNCH_REARM_MS) {
-            this.armed[hand] = true;
-            this.armedAt[hand] = now;
-            this.needsRearm[hand] = false;
-          }
-        } else this.rearmSince[hand] = null;
-      }
-      this.punches[hand] = {
-        ...emptyDiagnostic(),
-        status:
-          now - this.handPunchAt[hand] < PUNCH_COOLDOWN_MS
-            ? 'cooldown'
-            : this.armed[hand]
-              ? 'need-motion'
-              : 'return-to-rest',
-      };
-    }
-    const candidates: PunchCandidate[] = [];
-    // Separate hand recovery allows a fresh opposite-hand strike during a combination.
-    if (last) {
-      for (const hand of ['left', 'right'] as const) {
-        if (!this.armed[hand]) continue;
-        let pending = this.pending[hand];
-        let classificationReady = false;
-        if (pending && now - pending.seenAt > 100) pending = null;
-        let best: PunchCandidate | null = null;
-        let origin: NormalizedFeatures | null = null;
-        for (const before of this.history) {
-          const elapsed = now - before.timestamp;
-          if (
-            elapsed < 25 ||
-            elapsed > 250 ||
-            before.timestamp < this.armedAt[hand] ||
-            before.timestamp < this.handPunchAt[hand]
-          )
-            continue;
-          const { diagnostic, candidate } = recognizePunch(
-            before,
-            features,
-            last,
-            hand,
-            this.sensitivity,
-          );
-          const current = this.punches[hand];
-          current.extension = Math.max(current.extension, diagnostic.extension);
-          current.imageSpeed = Math.max(current.imageSpeed, diagnostic.imageSpeed);
-          current.forwardSpeed = Math.max(current.forwardSpeed, diagnostic.forwardSpeed);
-          current.swingArc = Math.max(current.swingArc, diagnostic.swingArc);
-          if (candidate && (!best || candidate.score > best.score)) {
-            best = candidate;
-            origin = before;
-          }
-        }
-        if (!pending && best && origin) {
-          pending = { origin, candidate: best, seenAt: now, completed: false, peak: features };
-          classificationReady = true;
-        } else if (pending) {
-          // Keep the launch point fixed so a hook's developing arc cannot be
-          // replaced by a short straight-looking segment from later in the swing.
-          const evolving = recognizePunch(
-            pending.origin,
-            features,
-            last,
-            hand,
-            this.sensitivity,
-            pending.candidate.move,
-          ).candidate;
-          if (!pending.completed && evolving && now - pending.origin.timestamp <= 250) {
-            pending.candidate = {
-              ...evolving,
-              speed: Math.max(pending.candidate.speed, evolving.speed),
-            };
-            classificationReady = true;
-            const launch = pending.origin.arms[hand];
-            const excursion = (f: NormalizedFeatures) =>
-              wristTravel(launch, f.arms[hand]).distance +
-              elbowTravel(launch, f.arms[hand]) +
-              Math.max(0, launch.wrist.z - f.arms[hand].wrist.z);
-            if (excursion(features) > excursion(pending.peak)) pending.peak = features;
-          }
-          // Preserve an observed strike when a quick out-and-back jab finishes
-          // before the classification window. Recoil is never a second attack.
-          const launch = pending.origin.arms[hand];
-          const current = features.arms[hand];
-          if (
-            !evolving &&
-            wristTravel(launch, current).distance < 0.1 &&
-            (!launch.depthReliable ||
-              !current.depthReliable ||
-              Math.abs(current.wrist.z - launch.wrist.z) < 0.08 ||
-              (launch.elbow &&
-                current.elbow &&
-                elbowTravel(launch, current) < 0.1 &&
-                Math.abs(current.projectedForearm - launch.projectedForearm) < 0.04))
-          )
-            pending.completed = true;
-          classificationReady ||= pending.completed;
-          if (best) pending.seenAt = now;
-        }
-        this.pending[hand] = pending;
-        if (
-          pending &&
-          classificationReady &&
-          now - this.punchAt >= PUNCH_COMBO_GAP_MS &&
-          now - this.handPunchAt[hand] >= PUNCH_COOLDOWN_MS &&
-          now - pending.origin.timestamp >= PUNCH_CLASSIFICATION_MS
-        )
-          candidates.push(pending.candidate);
-      }
-    }
-    // Choose the active arm by CURRENT motion, before comparing path confidence.
-    // A long/noisy path from the other arm must not steal a fresh fast jab.
-    candidates.sort(
-      (a, b) => b.speed - a.speed || b.score - a.score || (a.hand === 'left' ? -1 : 1),
-    );
-    const punch = candidates[0]?.hand;
-    const move = candidates[0]?.move;
-    if (punch) {
-      const strike = this.pending[punch]!;
-      this.recovery[punch] = { origin: strike.origin, peak: strike.peak };
-      this.punchAt = now;
-      this.handPunchAt[punch] = now;
-      this.armed[punch] = false;
-      this.needsRearm[punch] = true;
-      this.rearmSince[punch] = null;
-      this.pending[punch] = null;
-      this.punches[punch].status = 'detected';
-    }
-    const attacking = now - this.punchAt < PUNCH_COOLDOWN_MS;
-    const guardEvidence = (['left', 'right'] as const).every(
-      (hand) =>
-        distance2(features.arms[hand].wrist, features.head) <= 0.8 * this.sensitivity &&
-        features.arms[hand].imageElbowAngle < 150 &&
-        features.arms[hand].wrist.y < features.arms[hand].shoulder.y - 0.2,
-    );
-    const handsLowered = (['left', 'right'] as const).some(
-      (hand) => features.arms[hand].wrist.y > features.arms[hand].shoulder.y + 0.1,
-    );
-    if (guardEvidence || (this.guard && !handsLowered)) {
+    if (this.previous && now <= this.previous.timestamp) return this.frame(features);
+    if (this.previous && now - this.previous.timestamp > 250) this.invalidate();
+    const last = this.previous;
+    const hands = ['left', 'right'] as const;
+    const visible = hands.every((hand) => features.arms[hand].tracked !== false);
+    // Upper chest / shoulder height is enough; no face-distance or elbow-angle gate.
+    const guardEvidence =
+      visible &&
+      hands.every(
+        (hand) =>
+          features.arms[hand].wrist.y - features.arms[hand].shoulder.y <= 0.2 &&
+          Math.abs(features.arms[hand].wrist.x) <= 1.1,
+      );
+    const loweredHands =
+      !visible ||
+      hands.some((hand) => features.arms[hand].wrist.y - features.arms[hand].shoulder.y >= 0.3);
+    if (guardEvidence) {
+      this.guard = true;
       this.guardExit = null;
-      this.guardEnter ??= now;
-      if (now - this.guardEnter >= 100) this.guard = true;
-    } else {
-      this.guardEnter = null;
+    } else if (loweredHands) {
       this.guardExit ??= now;
-      if (now - this.guardExit >= 150) this.guard = false;
+      if (!visible || now - this.guardExit >= 80) this.guard = false;
+    } else this.guardExit = null;
+    const wristSteps = Object.fromEntries(hands.map(hand => [hand,
+      last && last.arms[hand].tracked !== false && features.arms[hand].tracked !== false
+        ? wristTravel(last.arms[hand], features.arms[hand]) : { x: 0, y: 0, distance: 0 },
+    ])) as Record<Hand, ReturnType<typeof wristTravel>>;
+    const rises = hands.map(hand => -wristSteps[hand].y);
+    const bothRaising = visible && Math.min(...rises) >= 0.06 &&
+      Math.min(...rises) >= Math.max(...rises) * 0.6 &&
+      hands.every(hand => Math.abs(features.arms[hand].wrist.x) <= 1.1);
+    const dominantHand = hands.find(hand => {
+      const other = hand === 'left' ? 'right' : 'left';
+      const step = wristSteps[hand], stroke = this.strokes[hand];
+      if (this.recovering[hand]) return false;
+      if (stroke?.emitted) {
+        const launch = wristTravel(stroke.origin.arms[hand], stroke.peak.arms[hand]);
+        if (launch.x * step.x + launch.y * step.y < -0.002) return false;
+      }
+      return step.distance >= 0.08 && step.distance > wristSteps[other].distance * 2.5;
+    });
+    const candidates: NonNullable<ReturnType<typeof recognizePunch>['candidate']>[] = [];
+    for (const hand of hands) {
+      const arm = features.arms[hand],
+        before = last?.arms[hand];
+      this.punches[hand] = emptyDiagnostic();
+      if (!before || before.tracked === false || arm.tracked === false) {
+        this.strokes[hand] = null;
+        this.recovering[hand] = null;
+        continue;
+      }
+      if (dominantHand && hand !== dominantHand && !this.strokes[hand]?.emitted) {
+        // Covering-arm noise cannot launch an attack ahead of the visible swing.
+        this.strokes[hand] = null;
+        continue;
+      }
+      const dt = now - last!.timestamp;
+      const activityJoint = movingJoint(before, arm);
+      const activity = jointTravel(before, arm, activityJoint);
+      const joint = this.strokes[hand]?.joint ?? this.recovering[hand]?.joint ?? activityJoint;
+      const step = jointTravel(before, arm, joint);
+      const speed = (activity.distance * 1000) / dt;
+      if (bothRaising) {
+        this.strokes[hand] = null;
+        continue;
+      }
+      const recovery = this.recovering[hand];
+      if (recovery) {
+        if (activityJoint !== recovery.joint && activity.distance >= 0.1 && step.distance < 0.03)
+          this.recovering[hand] = null;
+        else if (activity.distance < 0.03) recovery.quietSince ??= now;
+        else if (step.x * recovery.x + step.y * recovery.y + step.z * recovery.z < -0.002)
+          this.recovering[hand] = null;
+        else recovery.quietSince = null;
+        if (recovery.quietSince !== null && now - recovery.quietSince >= 40)
+          this.recovering[hand] = null;
+        if (this.recovering[hand]) {
+          this.punches[hand].status = 'return-to-rest';
+          continue;
+        }
+      }
+      let stroke = this.strokes[hand];
+      if (stroke) {
+        const settled = stroke.quietSince !== null && now - stroke.quietSince >= QUIET_MS;
+        const excursion = jointTravel(stroke.origin.arms[hand], arm, stroke.joint).distance;
+        const peak = jointTravel(
+          stroke.origin.arms[hand],
+          stroke.peak.arms[hand],
+          stroke.joint,
+        ).distance;
+        const launch = jointTravel(stroke.origin.arms[hand], stroke.peak.arms[hand], stroke.joint);
+        const reversing = step.distance >= 0.04 &&
+          launch.x * step.x + launch.y * step.y + launch.z * step.z < -0.002;
+        if (excursion > peak) stroke.peak = features;
+        if (activity.distance < 0.03) stroke.quietSince ??= now;
+        else stroke.quietSince = null;
+        if (peak > 0.1 && (excursion <= peak * 0.5 || (stroke.emitted && reversing))) {
+          if (stroke.emitted) {
+            this.strokes[hand] = null;
+            this.recovering[hand] = {
+              x: step.x,
+              y: step.y,
+              z: step.z,
+              joint: stroke.joint,
+              quietSince: null,
+            };
+            continue;
+          }
+          // An unclassified wind-up can reverse into a hook. Start its path at the turn.
+          stroke = {
+            origin: last!,
+            peak: features,
+            joint: movingJoint(before, arm),
+            emitted: false,
+            quietSince: null,
+          };
+          this.strokes[hand] = stroke;
+        }
+        if (settled && (!stroke.emitted || activity.distance >= 0.03)) {
+          this.strokes[hand] = null;
+          stroke = null;
+        }
+      }
+      // Camera-facing jabs can move the elbow more than the visible wrist.
+      const onsetSpeed = activityJoint === 'wrist' ? MIN_PUNCH_SPEED : MIN_STRAIGHT_SPEED;
+      if (!stroke && speed >= onsetSpeed / this.sensitivity) {
+        stroke = {
+          origin: last!,
+          peak: features,
+          joint: activityJoint,
+          emitted: false,
+          quietSince: null,
+        };
+        this.strokes[hand] = stroke;
+      }
+      if (!stroke) continue;
+      if (stroke.emitted) {
+        this.punches[hand].status = 'return-to-rest';
+        continue;
+      }
+      if (now - this.handPunchAt[hand] < PUNCH_COOLDOWN_MS) {
+        this.punches[hand].status = 'cooldown';
+        continue;
+      }
+      const result = recognizePunch(stroke.origin, features, last!, hand, this.sensitivity);
+      this.punches[hand] = {
+        ...result.diagnostic,
+        status: result.candidate ? 'detected' : 'need-motion',
+      };
+      if (result.candidate) candidates.push(result.candidate);
     }
+    candidates.sort((a, b) => b.score - a.score || b.speed - a.speed);
+    const strike = now - this.punchAt >= PUNCH_COMBO_GAP_MS ? candidates[0] : undefined;
+    if (strike) {
+      this.strokes[strike.hand]!.emitted = true;
+      this.handPunchAt[strike.hand] = this.punchAt = now;
+    }
+    const attacking = this.isAttacking(now);
     const lowered =
       features.headDrop >= 0.35 / this.sensitivity &&
       features.shoulderDrop >= 0.35 / this.sensitivity;
@@ -307,8 +269,12 @@ export class ActionDetector {
         if (now - this.dodgeExit >= 90) this.dodge = null;
       }
     }
-    this.history.push(features);
-    return { ...this.frame(features), ...(punch ? { punch, move } : {}) };
+
+    this.previous = features;
+    return {
+      ...this.frame(features),
+      ...(strike ? { punch: strike.hand, move: strike.move } : {}),
+    };
   }
   private frame(features: NormalizedFeatures): MotionFrame {
     return {
@@ -321,15 +287,10 @@ export class ActionDetector {
     };
   }
   invalidate() {
-    this.recovery = { left: null, right: null };
-    this.pending = { left: null, right: null };
-    this.history = [];
-    this.armed = { left: false, right: false };
-    this.armedAt = { left: Infinity, right: Infinity };
-    this.needsRearm = { left: false, right: false };
-    this.rearmSince = { left: null, right: null };
+    this.previous = null;
+    this.strokes = { left: null, right: null };
+    this.recovering = { left: null, right: null };
     this.guard = false;
-    this.guardEnter = null;
     this.guardExit = null;
     if (this.duck) this.duckNeedsRearm = true;
     this.duck = false;

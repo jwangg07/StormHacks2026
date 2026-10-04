@@ -12,6 +12,15 @@ export class ArmIdentityTracker {
   private swapped = false;
 
   update(sample: PoseSample): PoseSample {
+    if (
+      HANDS.some(
+        (hand) =>
+          !sample.aspectLandmarks[`${hand}Wrist`] || !sample.aspectLandmarks[`${hand}Elbow`],
+      )
+    ) {
+      this.reset();
+      return sample;
+    }
     const previous = this.previous;
     const dt = previous ? sample.frame.timestamp - previous.frame.timestamp : 0;
     if (sample.tracking !== 'VALID' || (previous && (dt <= 0 || dt > 200))) {

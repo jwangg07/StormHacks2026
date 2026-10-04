@@ -1,6 +1,8 @@
 import type { Landmark, PoseFrame, TrackingState } from './types';
 
-export const POSE_VISIBILITY_THRESHOLD = 0.6;
+export const POSE_VISIBILITY_THRESHOLD = 0.5;
+const ARM_VISIBILITY_THRESHOLD = 0.35;
+const CORE_LANDMARKS = ['nose', 'leftShoulder', 'rightShoulder'] as const;
 export const POSE_HISTORY_MS = 300;
 export const VISUAL_HOLD_MS = 200;
 export const TRACKING_PAUSE_MS = 500;
@@ -58,7 +60,10 @@ export function createPoseSample(
       !validDimensions ||
       !point ||
       ![point.x, point.y, point.z, point.visibility].every(Number.isFinite) ||
-      point.visibility < POSE_VISIBILITY_THRESHOLD ||
+      point.visibility <
+        (name.endsWith('Wrist') || name.endsWith('Elbow')
+          ? ARM_VISIBILITY_THRESHOLD
+          : POSE_VISIBILITY_THRESHOLD) ||
       point.x < 0 ||
       point.x > 1 ||
       point.y < 0 ||
@@ -77,7 +82,7 @@ export function createPoseSample(
   }
   const missingLandmarks = REQUIRED_LANDMARKS.filter((name) => !frame.landmarks[name]);
   const confidence = Math.min(
-    ...REQUIRED_LANDMARKS.map((name) => {
+    ...CORE_LANDMARKS.map((name) => {
       const point = landmarks[POSE_LANDMARKS[name]];
       return point && Number.isFinite(point.visibility)
         ? Math.max(0, Math.min(1, point.visibility))
@@ -93,7 +98,7 @@ export function createPoseSample(
     tracking:
       landmarks.length === 0 || !validDimensions
         ? 'LOST'
-        : missingLandmarks.length
+        : CORE_LANDMARKS.some((name) => !frame.landmarks[name])
           ? 'LOW_CONFIDENCE'
           : 'VALID',
   };

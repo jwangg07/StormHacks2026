@@ -36,17 +36,19 @@ test('aspect correction preserves image coordinates and anatomical labels', () =
   assert.notEqual(sample.frame.landmarks.leftWrist, input[15]);
 });
 
-test('rejects low visibility wrists while optional occluded hips do not invalidate upper body', () => {
+test('moderately confident wrists are usable and an occluded wrist disables only that hand', () => {
   const input = points();
   input[23].visibility = 0.1;
   assert.equal(createPoseSample(input, 0, 640, 480).tracking, 'VALID');
-  input[15].visibility = 0.59;
+  input[15].visibility = 0.4;
+  assert.equal(createPoseSample(input, 0, 640, 480).tracking, 'VALID');
+  input[15].visibility = 0.1;
   const sample = createPoseSample(input, 0, 640, 480);
-  assert.equal(sample.tracking, 'LOW_CONFIDENCE');
+  assert.equal(sample.tracking, 'VALID');
   assert.deepEqual(sample.missingLandmarks, ['leftWrist']);
   assert.equal(sample.frame.landmarks.leftWrist, undefined);
   assert.equal(sample.aspectLandmarks.leftHip, undefined);
-  assert.equal(sample.confidence, 0.59);
+  assert.equal(sample.confidence, 0.9);
   input[15].visibility = 0.6;
   assert.equal(createPoseSample(input, 0, 640, 480).tracking, 'VALID');
 });

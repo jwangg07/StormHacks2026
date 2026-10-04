@@ -330,7 +330,9 @@ export function FirstPersonScreen() {
       : diagnostics.phase === 'error'
         ? diagnostics.message
         : diagnostics.tracking === 'VALID'
-          ? 'Tracking both arms.'
+          ? diagnostics.missingLandmarks.length
+            ? 'Tracking visible movements. Keep both arms in view.'
+            : 'Tracking both arms.'
           : 'Keep your shoulders, elbows, and wrists in frame.';
 
   return (

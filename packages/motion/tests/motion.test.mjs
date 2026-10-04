@@ -82,7 +82,8 @@ const guardArms = { left: { wrist: point(0.35, -0.8) }, right: { wrist: point(-0
 test('calibration automatically starts on a valid pose once and preserves completed baseline across tracking loss', () => {
   const c = new MotionController();
   c.update(sample(0, { leftWrist: point(0.66, 0.52, 0, 0.1) }));
-  assert.equal(c.diagnostics().calibration.phase, 'idle');
+  assert.equal(c.diagnostics().calibration.phase, 'collecting');
+  assert.equal(c.diagnostics().calibration.progress, 0, 'both arms are needed for the baseline');
   c.update(sample(50));
   assert.equal(c.diagnostics().calibration.phase, 'collecting');
   for (let t = 100; t <= 3050; t += 50) c.update(sample(t));
@@ -177,8 +178,8 @@ test('punches are one-shot, recover per hand, need return to rest and ignore dup
   d.update(features(50));
   assert.equal(d.update(features(150, { left: extended })).punch, 'left');
   assert.equal(d.update(features(150, { left: extended })).punch, undefined);
-  assert.equal(d.update(features(200, { left: extended, right: rightExtended })).punch, undefined);
-  assert.equal(d.update(features(250, { left: extended, right: rightExtended })).punch, 'right');
+  assert.equal(d.update(features(200, { left: extended, right: rightExtended })).punch, 'right');
+  assert.equal(d.update(features(250, { left: extended, right: rightExtended })).punch, undefined);
   for (let t = 300; t < 700; t += 50)
     assert.equal(d.update(features(t, { left: extended, right: rightExtended })).punch, undefined);
   d.update(features(700));
@@ -210,15 +211,18 @@ test('simultaneous punches choose strongest then left on a tie; depth alone cann
 
 test('guard uses entry/exit hysteresis and attacks suppress duck', () => {
   const d = new ActionDetector();
-  assert.equal(d.update(features(0, guardArms)).guard, false);
-  assert.equal(d.update(features(50, guardArms)).guard, false);
+  assert.equal(d.update(features(0, guardArms)).guard, true);
+  assert.equal(d.update(features(50, guardArms)).guard, true);
   assert.equal(d.update(features(100, guardArms)).guard, true);
   assert.equal(d.update(features(150)).guard, true);
-  assert.equal(d.update(features(250)).guard, true);
+  assert.equal(d.update(features(250)).guard, false);
   assert.equal(d.update(features(300)).guard, false);
-  d.update(features(350, { left: extended, headDrop: 0.5, shoulderDrop: 0.5 }));
+  assert.equal(
+    d.update(features(350, { left: extended, headDrop: 0.5, shoulderDrop: 0.5 })).punch,
+    'left',
+  );
   const frame = d.update(features(400, { left: extended, headDrop: 0.5, shoulderDrop: 0.5 }));
-  assert.equal(frame.punch, 'left');
+  assert.equal(frame.punch, undefined);
   assert.equal(frame.guard, false);
   assert.equal(frame.duck, false);
 });
@@ -286,8 +290,7 @@ test('a punch from block keeps the other hand blocking throughout recovery', () 
     left: { ...extended, wrist: point(1.7, -0.5) },
     right: guardArms.right,
   };
-  d.update(features(200, attack));
-  const frame = d.update(features(250, attack));
+  const frame = d.update(features(200, attack));
   assert.equal(frame.punch, 'left');
   assert.equal(frame.guard, true);
   for (let t = 300; t <= 1000; t += 50) assert.equal(d.update(features(t, guardArms)).guard, true);
@@ -391,10 +394,17 @@ test('full landmark sequence completes calibration after the two punches and gua
     [`${hand}Wrist`]: point(hand === 'left' ? 0.92 : 0.08, 0.43),
   });
   assert.equal(c.update(sample(3200, punch('left'))).punch, 'left');
-  for (let t = 3250; t <= 3800; t += 50) c.update(sample(t));
+  const left = [];
+  for (let t = 3250; t <= 3800; t += 50) {
+    const frame = c.update(sample(t));
+    if (frame.punch) left.push(frame.punch);
+  }
+  assert.deepEqual(left, [], 'recoil never repeats the attack');
   assert.equal(c.update(sample(3900, punch('right'))).punch, 'right');
+  c.update(sample(3950));
+  assert.equal(c.update(sample(4000)).punch, undefined);
   const guard = { leftWrist: point(0.57, 0.3), rightWrist: point(0.43, 0.3) };
-  for (let t = 3950; t <= 4750; t += 50) c.update(sample(t, guard));
+  for (let t = 4050; t <= 4750; t += 50) c.update(sample(t, guard));
   assert.equal(c.diagnostics().calibration.checks.guard, true);
   assert.equal(c.diagnostics().calibration.phase, 'ready');
   const lost = c.update(sample(5250, { leftWrist: point(0.66, 0.52, 0, 0) }));

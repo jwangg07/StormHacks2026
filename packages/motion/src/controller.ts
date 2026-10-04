@@ -72,7 +72,8 @@ export class MotionController {
     this.features = features;
     const actions: (ActionCheck | 'duck')[] = [];
     if (frame.punch) actions.push(frame.punch === 'left' ? 'leftPunch' : 'rightPunch');
-    if (frame.guard && !previous?.guard) actions.push('guard');
+    if (frame.guard && (!previous?.guard || this.calibration.snapshot().nextCheck === 'guard'))
+      actions.push('guard');
     if (frame.duck && !previous?.duck) actions.push('duck');
     const action =
       actions.find((name) => name === this.calibration.snapshot().nextCheck) ?? actions[0];

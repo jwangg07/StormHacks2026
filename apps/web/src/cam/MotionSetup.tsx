@@ -4,10 +4,9 @@ import type { usePoseLandmarker } from '../motion/usePoseLandmarker';
 import './motionSetup.css';
 
 const PUNCH_STATUS = {
-  'return-to-rest': 'Return to guard',
-  cooldown: 'Shared punch cooldown',
-  'need-extension': 'Waiting for extension',
-  'need-motion': 'Waiting for sufficient motion',
+  'return-to-rest': 'Recover or pause briefly',
+  cooldown: 'Punch cooldown',
+  'need-motion': 'Ready for a movement',
   detected: 'Punch recognized',
 };
 
@@ -75,13 +74,15 @@ export function MotionSetup({
           {(['left', 'right'] as const).map((hand) => (
             <div key={hand}>
               <dt>{hand === 'left' ? 'Left punch' : 'Right punch'}</dt>
-              <dd>{status ? PUNCH_STATUS[status.punches[hand].status] : 'Calibrate first'}</dd>
-              <dt>Extension / swing arc / forward speed</dt>
               <dd>
-                {(status?.punches[hand].extension ?? 0).toFixed(0)} deg /{' '}
-                {(status?.punches[hand].swingArc ?? 0).toFixed(0)} deg /{' '}
-                {(status?.punches[hand].forwardSpeed ?? 0).toFixed(2)} shoulder widths/s
+                {status?.features?.arms[hand].tracked === false
+                  ? 'Keep this wrist in view'
+                  : status
+                    ? PUNCH_STATUS[status.punches[hand].status]
+                    : 'Calibrate first'}
               </dd>
+              <dt>Movement speed</dt>
+              <dd>{(status?.punches[hand].speed ?? 0).toFixed(2)} shoulder widths/s</dd>
             </div>
           ))}
           <dt>Left wrist speed</dt>
@@ -104,7 +105,8 @@ export function MotionSetup({
         </dl>
       </details>
       <p className="motion-tip">
-        Use compact movements. Turn slightly if a wrist disappears during a straight punch.
+        Sweep across for hooks, drive upward for uppercuts, and extend from your chest for jabs.
+        Raise both fists to upper chest height to guard.
       </p>
     </section>
   );
