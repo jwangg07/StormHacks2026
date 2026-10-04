@@ -3,6 +3,18 @@ import type { Hand, MotionFrame } from './types';
 import { distance2 } from './geometry';
 
 export const PUNCH_COOLDOWN_MS = 450;
+export interface PunchDiagnostic {
+  status: 'return-to-rest' | 'cooldown' | 'need-extension' | 'need-motion' | 'detected';
+  extension: number;
+  imageSpeed: number;
+  forwardSpeed: number;
+}
+const emptyDiagnostic = (): PunchDiagnostic => ({
+  status: 'return-to-rest',
+  extension: 0,
+  imageSpeed: 0,
+  forwardSpeed: 0,
+});
 export class ActionDetector {
   private history: NormalizedFeatures[] = [];
   private armed: Record<Hand, boolean> = { left: false, right: false };
@@ -16,6 +28,10 @@ export class ActionDetector {
   private duckAt = -Infinity;
   private duckNeedsRearm = false;
   private neutralAt: number | null = null;
+  private punches: Record<Hand, PunchDiagnostic> = {
+    left: emptyDiagnostic(),
+    right: emptyDiagnostic(),
+  };
   constructor(private sensitivity = 1) {}
 
   update(features: NormalizedFeatures): MotionFrame {
@@ -26,39 +42,66 @@ export class ActionDetector {
     this.history = this.history.filter((frame) => now - frame.timestamp <= 300);
     for (const hand of ['left', 'right'] as const) {
       const arm = features.arms[hand];
-      if (arm.elbowAngle < 140 && arm.restDistance < 0.65) this.armed[hand] = true;
+      const atRest =
+        arm.restDistance < 0.65 || distance2(arm.wrist, features.head) <= 0.8 * this.sensitivity;
+      if (arm.elbowAngle < 140 && atRest) this.armed[hand] = true;
+      this.punches[hand] = {
+        ...emptyDiagnostic(),
+        status:
+          now - this.punchAt < PUNCH_COOLDOWN_MS
+            ? 'cooldown'
+            : this.armed[hand]
+              ? 'need-extension'
+              : 'return-to-rest',
+      };
     }
     const candidates: { hand: Hand; score: number }[] = [];
     if (now - this.punchAt >= PUNCH_COOLDOWN_MS) {
       for (const hand of ['left', 'right'] as const) {
         if (!this.armed[hand]) continue;
         const arm = features.arms[hand];
+        let bestScore = 0;
         for (const before of this.history) {
           const elapsed = now - before.timestamp,
             oldArm = before.arms[hand];
-          if (
-            elapsed < 50 ||
-            elapsed > 250 ||
-            oldArm.elbowAngle > 145 ||
-            oldArm.depthReliable !== arm.depthReliable
-          )
-            continue;
-          const extension = arm.elbowAngle - oldArm.elbowAngle;
+          if (elapsed < 50 || elapsed > 250) continue;
+          const sameWorld = arm.depthReliable && oldArm.depthReliable;
+          const imageExtension =
+            oldArm.imageElbowAngle <= 145 ? arm.imageElbowAngle - oldArm.imageElbowAngle : 0;
+          const worldExtension =
+            sameWorld && oldArm.elbowAngle <= 145 ? arm.elbowAngle - oldArm.elbowAngle : 0;
+          // Projected elbow angles can rise on retraction after foreshortening.
+          // When both world samples are credible, use their consistent angle.
+          const extension = sameWorld ? worldExtension : imageExtension;
           const speed = (distance2(arm.wrist, oldArm.wrist) * 1000) / elapsed;
-          // Depth can strengthen a candidate but cannot produce an attack alone.
-          const speedEvidence =
-            speed + (arm.depthReliable ? Math.max(0, arm.forwardSpeed) * 0.25 : 0);
-          if (
-            extension >= 25 / this.sensitivity &&
-            arm.elbowAngle >= 150 &&
-            speedEvidence > 1.5 / this.sensitivity &&
-            speed > 0.75 / this.sensitivity &&
-            arm.reach > oldArm.reach + 0.12
-          ) {
-            candidates.push({ hand, score: extension * speedEvidence * features.confidence });
-            break;
-          }
+          const forwardTravel = sameWorld ? oldArm.wrist.z - arm.wrist.z : 0;
+          const forwardSpeed = Math.max(0, (forwardTravel * 1000) / elapsed);
+          const diagnostic = this.punches[hand];
+          diagnostic.extension = Math.max(diagnostic.extension, extension);
+          diagnostic.imageSpeed = Math.max(diagnostic.imageSpeed, speed);
+          diagnostic.forwardSpeed = Math.max(diagnostic.forwardSpeed, forwardSpeed);
+          if (extension < 25 / this.sensitivity) continue;
+          diagnostic.status = 'need-motion';
+          const imageMotion = speed > 1.5 / this.sensitivity && arm.reach > oldArm.reach + 0.12;
+          // A forward punch may shrink in 2D. Require independent image forearm
+          // foreshortening PLUS rising elbow extension and outward world reach;
+          // a depth spike or body lean cannot trigger an attack by itself.
+          const forwardMotion =
+            sameWorld &&
+            worldExtension >= 25 / this.sensitivity &&
+            forwardTravel >= 0.2 / this.sensitivity &&
+            forwardSpeed > 1.5 / this.sensitivity &&
+            arm.worldReach !== undefined &&
+            oldArm.worldReach !== undefined &&
+            arm.worldReach > oldArm.worldReach + 0.12 &&
+            oldArm.projectedForearm - arm.projectedForearm >= 0.12 / this.sensitivity;
+          if (imageMotion || forwardMotion)
+            bestScore = Math.max(
+              bestScore,
+              extension * (imageMotion ? speed : forwardSpeed) * features.confidence,
+            );
         }
+        if (bestScore > 0) candidates.push({ hand, score: bestScore });
       }
     }
     // Stable left-first tie break, with confidence-weighted strongest extension winning.
@@ -67,6 +110,7 @@ export class ActionDetector {
     if (punch) {
       this.punchAt = now;
       this.armed[punch] = false;
+      this.punches[punch].status = 'detected';
     }
     const attacking = now - this.punchAt < PUNCH_COOLDOWN_MS;
     const guardEvidence =
@@ -146,6 +190,10 @@ export class ActionDetector {
     this.duckEnter = null;
     this.duckExit = null;
     this.neutralAt = null;
+    this.punches = { left: emptyDiagnostic(), right: emptyDiagnostic() };
+  }
+  diagnostics() {
+    return { left: { ...this.punches.left }, right: { ...this.punches.right } };
   }
   isAttacking(now: number) {
     return now - this.punchAt < PUNCH_COOLDOWN_MS;

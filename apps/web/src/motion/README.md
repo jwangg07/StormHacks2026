@@ -51,7 +51,14 @@ sample timestamps. Adaptive pose smoothing damps rest jitter, follows fast arm
 motion, filters depth more strongly, and resets across long gaps.
 
 Punches require wrist motion and elbow extension within 250 ms. Depth can support
-evidence but never trigger an attack alone. A shared 450 ms cooldown, per-hand
+evidence but never trigger an attack alone. Image-plane punches require projected
+speed and outward reach. Front-camera punches instead require consistent estimated
+3D elbow extension and outward reach, forward travel/speed, and independently
+visible forearm foreshortening. There is no mandatory 150-degree elbow lockout.
+Image elbow evidence remains continuous across world-landmark dropouts; credible
+world angles prevent a retracting foreshortened arm being classified as a punch.
+Both calibrated chest rest and a bent face-level guard can rearm a hand.
+A shared 450 ms cooldown, per-hand
 rest rearm, and deterministic strongest/left-tie selection prevent repeat events.
 Guard enters after 100 ms and exits after 150 ms. Duck needs both head and shoulder
 drop, enters after 100 ms, uses a smaller exit threshold, expires at 800 ms, and
@@ -64,6 +71,12 @@ expose only normalized `MotionFrame` values; `PracticeAdapter` counts action edg
 The future SocketInputAdapter must forward pause requests and attach the shared
 packet envelope. This change does not connect combat or multiplayer inputs; the
 server remains responsible for match readiness, pause/resume, and accepted attacks.
+
+Movement diagnostics include per-hand detector status, best recent extension,
+image speed, and forward speed, so a missed candidate can be distinguished from
+cooldown, lack of rearm, inadequate extension/motion, and tracking loss. These
+features and model depth stay local. Normalized feature contract version is 2;
+the `MotionFrame` control contract is unchanged.
 
 Target: >=15 inference samples/s on both intended demo laptops, measured alongside
 the arena. The panel shows actual completion rate and inference duration, not a

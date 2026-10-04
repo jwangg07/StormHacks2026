@@ -25,6 +25,7 @@ export type { CalibrationBaseline, CalibrationStatus, ActionCheck } from './cali
 export { FeatureNormalizer, MOTION_FEATURE_VERSION } from './normalize';
 export type { NormalizedFeatures, ArmFeatures } from './normalize';
 export { ActionDetector, PUNCH_COOLDOWN_MS } from './detectors';
+export type { PunchDiagnostic } from './detectors';
 export { MotionController, idleControls } from './controller';
 export type { MotionDiagnostics } from './controller';
 export { PracticeAdapter } from './practice';

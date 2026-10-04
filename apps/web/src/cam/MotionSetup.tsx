@@ -5,6 +5,13 @@ import type { usePoseLandmarker } from '../motion/usePoseLandmarker';
 import './motionSetup.css';
 
 const LABELS = { leftPunch: 'Left punch', rightPunch: 'Right punch', guard: 'Guard', duck: 'Duck' };
+const PUNCH_STATUS = {
+  'return-to-rest': 'Return to rest or face-level guard',
+  cooldown: 'Shared punch cooldown',
+  'need-extension': 'Waiting for elbow extension',
+  'need-motion': 'Extension seen; waiting for outward motion',
+  detected: 'Punch recognized',
+};
 export function MotionSetup({
   motion,
   pose,
@@ -86,6 +93,17 @@ export function MotionSetup({
       <details>
         <summary>Movement diagnostics</summary>
         <dl>
+          {(['left', 'right'] as const).map((hand) => (
+            <div key={hand}>
+              <dt>{hand === 'left' ? 'Left punch' : 'Right punch'}</dt>
+              <dd>{status ? PUNCH_STATUS[status.punches[hand].status] : 'Calibrate first'}</dd>
+              <dt>Window extension / forward speed</dt>
+              <dd>
+                {(status?.punches[hand].extension ?? 0).toFixed(0)}° /{' '}
+                {(status?.punches[hand].forwardSpeed ?? 0).toFixed(2)} shoulder widths/s
+              </dd>
+            </div>
+          ))}
           <dt>Left wrist speed</dt>
           <dd>{(status?.features?.arms.left.wristSpeed ?? 0).toFixed(2)} shoulder widths/s</dd>
           <dt>Right wrist speed</dt>

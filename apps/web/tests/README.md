@@ -53,3 +53,16 @@ Guided motion setup browser verification (October 3, 2026):
 - Inspected `motion-setup.png` and `motion-practice.png`. The camera picture is
   deliberately blank; the overlay uses synthetic landmarks. These images do not
   demonstrate webcam accuracy, arm retargeting accuracy, or hardware performance.
+
+`packages/motion/tests/punches.test.mjs` reproduces missed partial extensions,
+face-level guard rearm, depth-source dropout, and foreshortened straight punches.
+The front-camera landmark trajectory passes through calibration and normalization
+for both hands at 15 Hz. Negative cases reject depth spikes and retraction. These
+are deterministic regression fixtures, not recordings of actual webcam trials.
+
+The same front-camera image/world trajectory was replayed through the real local
+worker-result boundary in a separate Chrome session. Both calibration punch
+checks succeeded; after Ready, left and right each counted once even when held
+extended for 1.2 seconds. No page exceptions occurred. The per-hand diagnostics
+were visually inspected. This verifies the UI/control wiring, not live tracking
+accuracy; actual teammate/device trials remain required.

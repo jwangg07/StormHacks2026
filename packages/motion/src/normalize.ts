@@ -1,12 +1,23 @@
 import type { CalibrationBaseline } from './calibration';
 import type { PoseSample } from './pose';
 import type { Landmark } from './types';
-import { clamp, distance2, elbowAngle, midpoint, reliableWorldArm } from './geometry';
+import {
+  clamp,
+  distance2,
+  distance3,
+  elbowAngle,
+  jointAngle,
+  midpoint,
+  reliableWorldArm,
+} from './geometry';
 
-export const MOTION_FEATURE_VERSION = 1;
+export const MOTION_FEATURE_VERSION = 2;
 export interface ArmFeatures {
   wrist: Landmark;
   elbowAngle: number;
+  imageElbowAngle: number;
+  projectedForearm: number;
+  worldReach?: number;
   wristSpeed: number;
   forwardSpeed: number;
   restDistance: number;
@@ -81,11 +92,40 @@ export class FeatureNormalizer {
       }
       const angle = elbowAngle(sample, hand);
       const smoothedAngle =
-        continuous && before ? before.elbowAngle + (angle - before.elbowAngle) * xyAlpha : angle;
+        continuous && before && before.depthReliable === !!world
+          ? before.elbowAngle + (angle - before.elbowAngle) * xyAlpha
+          : angle;
+      // Keep image evidence continuous when estimated world geometry comes and goes.
+      const imageAngle = jointAngle(
+        points[`${hand}Shoulder`],
+        points[`${hand}Elbow`],
+        points[`${hand}Wrist`],
+      );
+      const imageElbowAngle =
+        continuous && before
+          ? before.imageElbowAngle + (imageAngle - before.imageElbowAngle) * xyAlpha
+          : imageAngle;
+      const forearm =
+        (distance2(points[`${hand}Elbow`], points[`${hand}Wrist`]) * scale) /
+        baseline.shoulderWidth;
+      const projectedForearm =
+        continuous && before
+          ? before.projectedForearm + (forearm - before.projectedForearm) * xyAlpha
+          : forearm;
+      const reach = world ? distance3(world.shoulder, world.wrist) / world.width : undefined;
+      const worldReach =
+        reach === undefined
+          ? undefined
+          : continuous && before?.worldReach !== undefined && before.depthReliable
+            ? before.worldReach + (reach - before.worldReach) * xyAlpha
+            : reach;
       const shoulder = relative(project(points[`${hand}Shoulder`]));
       arms[hand] = {
         wrist,
         elbowAngle: smoothedAngle,
+        imageElbowAngle,
+        projectedForearm,
+        worldReach,
         wristSpeed: continuous && before ? (distance2(wrist, before.wrist) * 1000) / dt : 0,
         forwardSpeed:
           continuous && before && !!world === before.depthReliable

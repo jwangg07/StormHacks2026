@@ -38,6 +38,8 @@ function features(timestamp, changes = {}) {
   const arm = {
     wrist: point(0.65, 0.3),
     elbowAngle: 60,
+    imageElbowAngle: 60,
+    projectedForearm: 0.6,
     wristSpeed: 0,
     forwardSpeed: 0,
     restDistance: 0,
@@ -45,7 +47,7 @@ function features(timestamp, changes = {}) {
     depthReliable: false,
   };
   return {
-    version: 1,
+    version: 2,
     timestamp,
     confidence: 1,
     head: point(0, -0.9),
@@ -55,8 +57,19 @@ function features(timestamp, changes = {}) {
     neutral: true,
     ...changes,
     arms: {
-      left: { ...arm, ...changes.left },
-      right: { ...arm, wrist: point(-0.65, 0.3), ...changes.right },
+      left: {
+        ...arm,
+        ...changes.left,
+        imageElbowAngle:
+          changes.left?.imageElbowAngle ?? changes.left?.elbowAngle ?? arm.elbowAngle,
+      },
+      right: {
+        ...arm,
+        wrist: point(-0.65, 0.3),
+        ...changes.right,
+        imageElbowAngle:
+          changes.right?.imageElbowAngle ?? changes.right?.elbowAngle ?? arm.elbowAngle,
+      },
     },
   };
 }

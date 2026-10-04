@@ -1,6 +1,7 @@
 import { Calibration } from './calibration';
 import type { ActionCheck, CalibrationStatus } from './calibration';
 import { ActionDetector } from './detectors';
+import type { PunchDiagnostic } from './detectors';
 import { FeatureNormalizer } from './normalize';
 import type { NormalizedFeatures } from './normalize';
 import type { MotionFrame, TrackingState } from './types';
@@ -19,6 +20,7 @@ export interface MotionDiagnostics {
   features: NormalizedFeatures | null;
   lastAction: { action: ActionCheck; timestamp: number } | null;
   sensitivity: number;
+  punches: Record<'left' | 'right', PunchDiagnostic>;
 }
 export class MotionController {
   readonly calibration = new Calibration();
@@ -110,6 +112,7 @@ export class MotionController {
       features: this.features,
       lastAction: this.lastAction,
       sensitivity: this.sensitivity,
+      punches: this.detector.diagnostics(),
     };
   }
 }
