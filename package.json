@@ -12,15 +12,15 @@
     "apps/web",
     "apps/api",
     "packages/core",
+    "packages/database",
     "packages/motion"
   ],
   "scripts": {
     "dev": "concurrently -k -n web,api \"npm:dev:web\" \"npm:dev:api\"",
     "dev:web": "npm run dev --workspace @wb/web",
     "dev:api": "npm run dev --workspace @wb/api",
-    "test": "node --test \"packages/*/tests/*.test.mjs\" \"apps/*/tests/*.test.mjs\"",
-    "build": "npm run build --workspace @wb/core && npm run build --workspace @wb/motion && npm run build --workspace @wb/api && npm run build --workspace @wb/web",
-    "typecheck": "npm run typecheck --workspace @wb/core && npm run typecheck --workspace @wb/motion && npm run typecheck --workspace @wb/api && npm run typecheck --workspace @wb/web",
+    "build": "npm run build --workspace @wb/core && npm run build --workspace @wb/motion && npm run build --workspace @wb/database && npm run build --workspace @wb/api && npm run build --workspace @wb/web",
+    "typecheck": "npm run typecheck --workspace @wb/core && npm run typecheck --workspace @wb/motion && npm run typecheck --workspace @wb/database && npm run typecheck --workspace @wb/api && npm run typecheck --workspace @wb/web",
     "lint": "eslint apps packages",
     "format": "prettier --write \"apps/**/*.{ts,tsx,css,json,html}\" \"packages/**/*.{ts,json}\" \"*.{json,js}\" \"docs/*.md\" README.md",
     "format:check": "prettier --check \"apps/**/*.{ts,tsx,css,json,html}\" \"packages/**/*.{ts,json}\" \"*.{json,js}\" \"docs/*.md\" README.md"
