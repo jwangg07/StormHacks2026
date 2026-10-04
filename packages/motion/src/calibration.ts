@@ -11,7 +11,7 @@ import {
 } from './geometry';
 
 export const CALIBRATION_MS = 1000;
-export const ACTION_CHECKS = ['leftPunch', 'rightPunch', 'guard', 'duck'] as const;
+export const ACTION_CHECKS = ['leftPunch', 'rightPunch', 'guard'] as const;
 export type ActionCheck = (typeof ACTION_CHECKS)[number];
 export interface CalibrationBaseline {
   shoulderWidth: number;
@@ -39,7 +39,7 @@ export class Calibration {
       phase: 'idle',
       progress: 0,
       message: 'Calibrate your neutral stance before practice.',
-      checks: { leftPunch: false, rightPunch: false, guard: false, duck: false },
+      checks: { leftPunch: false, rightPunch: false, guard: false },
       nextCheck: null,
     };
   }
@@ -52,7 +52,8 @@ export class Calibration {
     this.status = {
       ...this.initial(),
       phase: 'collecting',
-      message: 'Hold still with elbows bent and hands at chest height for three seconds.',
+      message:
+        'Stand in a relaxed neutral position. Bend both elbows and hold your fists near your chest, below your face, until the bar fills. Small movements are okay.',
     };
   }
   invalidate() {
@@ -60,7 +61,7 @@ export class Calibration {
       this.samples = [];
       this.status.progress = 0;
       this.status.message =
-        'Tracking interrupted. Keep your head and both arms visible to restart the three-second hold.';
+        'Keep your head and both arms in view, then hold your fists near your chest to restart the neutral hold.';
     }
   }
   update(sample: PoseSample) {
@@ -81,7 +82,7 @@ export class Calibration {
       this.samples = [];
       this.status.progress = 0;
       this.status.message =
-        'Bend both elbows and hold your hands at chest height, below your face.';
+        'Bend both elbows and hold your fists near your chest, below your face. Relax your shoulders.';
       return this.snapshot();
     }
     const last = this.samples.at(-1);
@@ -96,15 +97,16 @@ export class Calibration {
       const base = first.aspectLandmarks,
         firstWidth = distance2(base.leftShoulder, base.rightShoulder);
       if (
-        Math.abs(width / firstWidth - 1) > 0.08 ||
-        distance2(p.nose, base.nose) / firstWidth > 0.08 ||
-        distance2(p.leftWrist, base.leftWrist) / firstWidth > 0.15 ||
-        distance2(p.rightWrist, base.rightWrist) / firstWidth > 0.15
+        Math.abs(width / firstWidth - 1) > 0.12 ||
+        distance2(p.nose, base.nose) / firstWidth > 0.15 ||
+        distance2(p.leftWrist, base.leftWrist) / firstWidth > 0.25 ||
+        distance2(p.rightWrist, base.rightWrist) / firstWidth > 0.25
       )
         this.samples = [];
     }
     this.samples.push(sample);
-    this.status.message = 'Hold your neutral stance steady for three seconds.';
+    this.status.message =
+      'Stand in a relaxed neutral position. Bend both elbows and hold your fists near your chest, below your face, until the bar fills. Small movements are okay.';
     this.status.progress = Math.min(
       1,
       (sample.frame.timestamp - this.samples[0].frame.timestamp) / CALIBRATION_MS,
@@ -185,7 +187,7 @@ export class Calibration {
       ...this.status,
       phase: 'checks',
       nextCheck: 'leftPunch',
-      message: 'Throw one controlled left punch, then return your hand to rest.',
+      message: 'Throw one controlled left punch, then bring your fist back near your chest.',
     };
     return this.snapshot();
   }
@@ -194,10 +196,9 @@ export class Calibration {
     this.status.checks[action] = true;
     const next = ACTION_CHECKS.find((name) => !this.status.checks[name]) ?? null;
     const messages = {
-      leftPunch: 'Throw one controlled left punch, then return to rest.',
-      rightPunch: 'Throw one controlled right punch, then return to rest.',
+      leftPunch: 'Throw one controlled left punch, then bring your fist back near your chest.',
+      rightPunch: 'Throw one controlled right punch, then bring your fist back near your chest.',
       guard: 'Raise both hands near your face with elbows bent.',
-      duck: 'Lower your head and shoulders together briefly, then stand up.',
     };
     this.status = {
       ...this.status,
@@ -205,7 +206,7 @@ export class Calibration {
       nextCheck: next,
       message: next
         ? messages[next]
-        : 'All four actions recognized. Entering the ring automatically.',
+        : 'Both punches and guard recognized. Entering the ring automatically.',
     };
   }
 }

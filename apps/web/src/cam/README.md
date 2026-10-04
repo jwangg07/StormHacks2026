@@ -41,8 +41,9 @@ Manual device checks:
     camera playback must remain available. Restore the files and retry.
 
 12. Step into frame: calibration starts automatically on a VALID pose. Follow the
-    trainer dialog and hold neutral for three seconds. Moving or hiding a required landmark resets
-    the hold. Perform each prompted action; the dialog closes automatically once all four
+    trainer dialog with elbows bent and fists near the chest until the progress bar fills.
+    Small movements are tolerated; larger movements or hiding a required landmark reset
+    the hold. Perform left punch, right punch, and guard; the dialog closes automatically once all three
     are recognized and tracking is stable. Verify local practice counts update once
     per punch and once per defense entry.
 13. Hold an extended arm, return it to rest, and punch again. Test rapid alternating

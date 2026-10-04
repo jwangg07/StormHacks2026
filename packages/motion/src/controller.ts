@@ -19,7 +19,7 @@ export const idleControls = (timestamp: number, tracking: TrackingState): Motion
 export interface MotionDiagnostics {
   calibration: CalibrationStatus;
   features: NormalizedFeatures | null;
-  lastAction: { action: ActionCheck; timestamp: number } | null;
+  lastAction: { action: ActionCheck | 'duck'; timestamp: number } | null;
   sensitivity: number;
   punches: Record<'left' | 'right', PunchDiagnostic>;
 }
@@ -70,7 +70,7 @@ export class MotionController {
     const frame = { ...this.detector.update(features), arms: this.armPose.update(sample) },
       previous = this.lastFrame;
     this.features = features;
-    const actions: ActionCheck[] = [];
+    const actions: (ActionCheck | 'duck')[] = [];
     if (frame.punch) actions.push(frame.punch === 'left' ? 'leftPunch' : 'rightPunch');
     if (frame.guard && !previous?.guard) actions.push('guard');
     if (frame.duck && !previous?.duck) actions.push('duck');
@@ -78,7 +78,7 @@ export class MotionController {
       actions.find((name) => name === this.calibration.snapshot().nextCheck) ?? actions[0];
     if (action) {
       this.lastAction = { action, timestamp: frame.timestamp };
-      this.calibration.check(action);
+      if (action !== 'duck') this.calibration.check(action);
     }
     if (
       this.calibration.snapshot().phase === 'ready' &&

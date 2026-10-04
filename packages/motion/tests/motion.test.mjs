@@ -94,7 +94,7 @@ test('calibration automatically starts on a valid pose once and preserves comple
   assert.equal(c.diagnostics().calibration.nextCheck, 'leftPunch');
 });
 
-test('calibration needs a continuous neutral hold, rejects occlusion and requires all four checks', () => {
+test('calibration needs a continuous neutral hold, rejects occlusion and finishes after both punches and guard', () => {
   const c = new Calibration();
   c.start();
   for (let t = 0; t < CALIBRATION_MS; t += 20) c.update(sample(t));
@@ -106,12 +106,47 @@ test('calibration needs a continuous neutral hold, rejects occlusion and require
   assert.ok(Math.abs(c.baseline.shoulderWidth - 0.24) < 1e-8);
   assert.ok(c.baseline.segmentRatios.left.upper > 0.35);
   assert.ok(c.baseline.torso.y > c.baseline.shoulderCenter.y);
-  c.check('duck');
-  assert.equal(c.snapshot().checks.duck, false);
+  c.check('guard');
+  assert.equal(c.snapshot().checks.guard, false);
   for (const action of ['leftPunch', 'rightPunch', 'guard']) c.check(action);
-  assert.equal(c.snapshot().phase, 'checks');
-  c.check('duck');
   assert.equal(c.snapshot().phase, 'ready');
+  assert.deepEqual(c.snapshot().checks, { leftPunch: true, rightPunch: true, guard: true });
+});
+
+test('neutral calibration tolerates small sway, wrist adjustments and scale jitter', () => {
+  const c = new Calibration();
+  c.start();
+  for (let t = 0; t <= 1600; t += 40) {
+    const movement = Math.sin(t / 120);
+    c.update(
+      sample(t, {
+        nose: point(0.5 + movement * 0.03, 0.25),
+        leftShoulder: point(0.62 + movement * 0.012, 0.45),
+        rightShoulder: point(0.38 - movement * 0.012, 0.45),
+        leftWrist: point(0.66 + movement * 0.05, 0.52),
+        rightWrist: point(0.34 - movement * 0.05, 0.52),
+      }),
+    );
+  }
+  assert.equal(c.snapshot().phase, 'checks');
+  assert.ok(Math.abs(c.baseline.shoulderWidth - 0.24) < 0.015);
+});
+
+test('large head or wrist movements and distance changes restart the neutral hold', () => {
+  for (const changes of [
+    { nose: point(0.56, 0.25) },
+    { leftWrist: point(0.74, 0.52) },
+    { rightWrist: point(0.26, 0.52) },
+    { leftShoulder: point(0.64, 0.45), rightShoulder: point(0.36, 0.45) },
+  ]) {
+    const c = new Calibration();
+    c.start();
+    for (let t = 0; t <= 600; t += 40) c.update(sample(t));
+    assert.ok(c.snapshot().progress > 0);
+    c.update(sample(640, changes));
+    assert.equal(c.snapshot().progress, 0);
+    assert.equal(c.baseline, null);
+  }
 });
 
 test('changing camera distance preserves body-relative coordinates and does not create a duck', () => {
@@ -347,7 +382,7 @@ test('estimated world pose supports depth, invalid world joints fall back withou
   );
 });
 
-test('full landmark sequence completes calibration and all four guided actions', () => {
+test('full landmark sequence completes calibration after the two punches and guard', () => {
   const c = new MotionController();
   c.startCalibration();
   for (let t = 0; t <= 3100; t += 50) c.update(sample(t));
@@ -361,7 +396,6 @@ test('full landmark sequence completes calibration and all four guided actions',
   const guard = { leftWrist: point(0.57, 0.3), rightWrist: point(0.43, 0.3) };
   for (let t = 3950; t <= 4750; t += 50) c.update(sample(t, guard));
   assert.equal(c.diagnostics().calibration.checks.guard, true);
-  for (let t = 4800; t <= 5200; t += 50) c.update(sample(t, {}, (p) => ({ ...p, y: p.y + 0.1 })));
   assert.equal(c.diagnostics().calibration.phase, 'ready');
   const lost = c.update(sample(5250, { leftWrist: point(0.66, 0.52, 0, 0) }));
   assert.equal(lost.guard, false);
@@ -412,7 +446,7 @@ test('actions keep calibration fixed; only quiet neutral samples adapt it slowly
   const c = new MotionController();
   c.startCalibration();
   for (let t = 0; t <= 3000; t += 50) c.update(sample(t));
-  for (const action of ['leftPunch', 'rightPunch', 'guard', 'duck']) c.calibration.check(action);
+  for (const action of ['leftPunch', 'rightPunch', 'guard']) c.calibration.check(action);
   const baselineY = c.calibration.baseline.head.y;
   c.update(sample(3050, {}, (p) => ({ ...p, y: p.y + 0.1 })));
   assert.equal(c.calibration.baseline.head.y, baselineY);

@@ -6,7 +6,7 @@ import type { useCamera } from './useCamera';
 import type { useMotionControls } from '../motion/useMotionControls';
 import type { usePoseLandmarker } from '../motion/usePoseLandmarker';
 
-const LABELS = { leftPunch: 'Left punch', rightPunch: 'Right punch', guard: 'Guard', duck: 'Duck' };
+const LABELS = { leftPunch: 'Left punch', rightPunch: 'Right punch', guard: 'Guard' };
 
 export function CalibrationDialog({
   camera,
@@ -37,7 +37,7 @@ export function CalibrationDialog({
         : !usable
           ? 'Find your mark'
           : calibration?.phase === 'collecting'
-            ? 'Hold your stance'
+            ? 'Hold fists near your chest'
             : calibration?.nextCheck
               ? `Show your ${LABELS[calibration.nextCheck].toLowerCase()}`
               : calibration?.phase === 'ready'
@@ -52,18 +52,16 @@ export function CalibrationDialog({
         : !usable
           ? 'Keep your head, shoulders, elbows, and wrists inside the camera frame.'
           : calibration?.phase === 'collecting'
-            ? 'Relax your shoulders and hold still while the trainer records your stance.'
+            ? calibration.message
             : calibration?.nextCheck === 'leftPunch'
-              ? 'Extend your left arm once, then bring your glove back to guard.'
+              ? 'Throw one controlled left punch, then bring your fist back near your chest.'
               : calibration?.nextCheck === 'rightPunch'
-                ? 'Extend your right arm once, then bring your glove back to guard.'
+                ? 'Throw one controlled right punch, then bring your fist back near your chest.'
                 : calibration?.nextCheck === 'guard'
                   ? 'Bring both hands up near your face and hold your guard.'
-                  : calibration?.nextCheck === 'duck'
-                    ? 'Bend your knees and lower your head and shoulders together.'
-                    : calibration?.phase === 'ready'
-                      ? 'Hold valid tracking briefly. The ring opens automatically.'
-                      : 'Stand comfortably with your hands near chest height.';
+                  : calibration?.phase === 'ready'
+                    ? 'Keep your upper body in view. The ring opens automatically.'
+                    : 'Stand in a relaxed neutral position with elbows bent and fists near your chest, below your face.';
   const complete = calibration ? Object.values(calibration.checks).filter(Boolean).length : 0;
   const cameraStatus = !camera.stream
     ? camera.status === 'error'
@@ -120,14 +118,16 @@ export function CalibrationDialog({
                 <progress
                   value={calibration.progress}
                   max={1}
-                  aria-label="Three-second neutral calibration"
+                  aria-label="Neutral stance calibration progress"
                 />
               </div>
             ) : null}
 
             <div className="fp-dialog-check-heading">
               <span>SHOW THE TRAINER</span>
-              <span>{complete} / 4</span>
+              <span>
+                {complete} / {ACTION_CHECKS.length}
+              </span>
             </div>
             <ol className="fp-dialog-checks">
               {ACTION_CHECKS.map((action, index) => (

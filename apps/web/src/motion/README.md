@@ -39,13 +39,15 @@ automatically once calibration is complete.
 `MotionController` starts calibration automatically on the first VALID pose of a
 camera session, without a Start calibration click. `/game` presents the initial
 calibration guide as a trainer dialog: neutral countdown, left punch, right punch,
-guard, and duck. The dialog closes automatically and enables local practice.
+and guard. The dialog closes automatically and enables local practice.
 The movement setup drawer retains camera controls, sensitivity,
 counts, and diagnostics; Recalibrate opens the guided dialog again. Incomplete
 tracking asks the player to step into frame and cannot advance setup.
 `useMotionControls` combines this with calibration: hold a visible neutral stance
-for three uninterrupted seconds, then demonstrate left punch, right punch, guard,
-and duck in order. Completion enables local practice controls automatically. Camera
+with elbows bent and fists near the chest until the progress bar fills (at least
+one second and 30 valid samples). Small movements are tolerated; larger movements
+or invalid tracking restart the hold. Then demonstrate left punch, right punch,
+and guard in order. Completion enables local practice controls automatically. Camera
 changes discard calibration; tracking loss cancels defense and gesture history,
 requires a fresh bent-arm rearm, and resumes automatically after stable tracking.
 
