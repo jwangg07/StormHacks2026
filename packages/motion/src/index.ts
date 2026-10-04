@@ -1,4 +1,12 @@
-export type { Hand, Landmark, MotionFrame, PoseFrame, PunchMove, TrackingState } from './types';
+export type {
+  ArmDirections,
+  Hand,
+  Landmark,
+  MotionFrame,
+  PoseFrame,
+  PunchMove,
+  TrackingState,
+} from './types';
 export {
   createPoseSample,
   POSE_LANDMARKS,
@@ -18,7 +26,7 @@ export {
   UPPER_ARM_SHOULDER_RATIO,
   FOREARM_SHOULDER_RATIO,
 } from './arms';
-export type { ArmDirections, ArmPose, Direction } from './arms';
+export type { ArmPose, Direction } from './arms';
 export { PoseSmoother } from './smoothing';
 export { Calibration, ACTION_CHECKS, CALIBRATION_MS } from './calibration';
 export type { CalibrationBaseline, CalibrationStatus, ActionCheck } from './calibration';

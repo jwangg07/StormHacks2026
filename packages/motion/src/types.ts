@@ -25,4 +25,13 @@ export interface MotionFrame {
   dodge?: Hand;
   punch?: Hand;
   move?: PunchMove;
+  arms?: {
+    left: ArmDirections | null;
+    right: ArmDirections | null;
+  };
+}
+
+export interface ArmDirections {
+  upper: { x: number; y: number; z: number };
+  fore: { x: number; y: number; z: number };
 }

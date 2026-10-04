@@ -7,6 +7,7 @@ import type { NormalizedFeatures } from './normalize';
 import type { MotionFrame, TrackingState } from './types';
 import type { PoseSample } from './pose';
 import { clamp } from './geometry';
+import { ArmPoseEstimator } from './arms';
 
 export const idleControls = (timestamp: number, tracking: TrackingState): MotionFrame => ({
   timestamp,
@@ -31,6 +32,7 @@ export class MotionController {
   private lastFrame: MotionFrame | null = null;
   private features: NormalizedFeatures | null = null;
   private lastTimestamp = -Infinity;
+  private armPose = new ArmPoseEstimator();
 
   startCalibration() {
     this.calibration.start();
@@ -39,6 +41,7 @@ export class MotionController {
     this.lastFrame = null;
     this.features = null;
     this.lastAction = null;
+    this.armPose.reset();
   }
   setSensitivity(value: number) {
     this.sensitivity = clamp(Number.isFinite(value) ? value : 1, 0.7, 1.3);
@@ -64,7 +67,7 @@ export class MotionController {
       this.detector.invalidate();
     }
     const features = this.normalizer.update(sample, baseline);
-    const frame = this.detector.update(features),
+    const frame = { ...this.detector.update(features), arms: this.armPose.update(sample) },
       previous = this.lastFrame;
     this.features = features;
     const actions: ActionCheck[] = [];
@@ -106,6 +109,7 @@ export class MotionController {
     this.detector.invalidate();
     this.features = null;
     this.lastFrame = null;
+    this.armPose.reset();
   }
   diagnostics(): MotionDiagnostics {
     return {

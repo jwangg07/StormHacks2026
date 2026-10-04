@@ -1,4 +1,4 @@
-import type { Landmark } from './types';
+import type { ArmDirections, Landmark } from './types';
 import type { PoseSample } from './pose';
 import { reliableWorldArm } from './geometry';
 
@@ -10,11 +10,6 @@ export interface Direction {
   x: number;
   y: number;
   z: number;
-}
-
-export interface ArmDirections {
-  upper: Direction;
-  fore: Direction;
 }
 
 export interface ArmPose {

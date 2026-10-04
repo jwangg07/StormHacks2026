@@ -5,6 +5,8 @@ import { Vector3 } from 'three';
 import type { Texture } from 'three';
 import { useSkin } from '../avatar/skinStore';
 import { Ring } from '../game/Ring';
+import { useMultiplayer } from '../net/MultiplayerProvider';
+import { InvitePanel } from '../ui/InvitePanel';
 import { MusicToggle } from '../ui/MusicToggle';
 import {
   AvatarPodium,
@@ -282,6 +284,11 @@ export function LobbyPage() {
   const [focus, setFocus] = useState<Spot | null>(null);
   const skin = useSkin();
   const navigate = useNavigate();
+  const { assignment } = useMultiplayer();
+
+  useEffect(() => {
+    if (assignment) void navigate('/game');
+  }, [assignment, navigate]);
 
   const hover = useCallback((spot: Spot, on: boolean) => {
     setHovered((current) => (on ? spot : current === spot ? null : current));
@@ -333,6 +340,8 @@ export function LobbyPage() {
       <div className="gym-sound">
         <MusicToggle />
       </div>
+
+      <InvitePanel />
 
       <nav className="gym-keys" aria-label="Gym">
         <Link to="/game" onClick={choose('ring')} {...focusProps('ring')}>

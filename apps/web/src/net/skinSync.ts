@@ -15,6 +15,7 @@ export function useOpponentSkinBlob(socket: Socket | null): Blob | null {
     const receive = ({ jpeg }: { seat: Seat; jpeg: ArrayBuffer }) =>
       setSkin(new Blob([jpeg], { type: 'image/jpeg' }));
     socket.on('avatar:opponentSkin', receive);
+    socket.emit('avatar:requestOpponentSkin', {});
     return () => {
       socket.off('avatar:opponentSkin', receive);
     };

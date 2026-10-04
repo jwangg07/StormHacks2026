@@ -11,6 +11,11 @@ class FakeSocket {
   readonly outbound: Array<{ event: string; payload: unknown }> = [];
   readonly rooms = new Set<string>();
   connected = true;
+  readonly data: { roomId?: string; seat?: string } = {};
+
+  get volatile() {
+    return this;
+  }
 
   constructor(readonly id: string) {}
 
@@ -116,6 +121,8 @@ describe('minimal two-player flow', () => {
     a.clientEmit('game.input', input(matchA.matchId, 1), ack);
     expect(ack).toHaveBeenCalledWith({ ok: true });
     expect(a.messages('game.attack')).toHaveLength(1);
+    expect(a.messages('game.opponentInput')).toHaveLength(0);
+    expect(b.messages('game.opponentInput')).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(300);
 
     expect(a.messages('game.hit')).toHaveLength(1);
@@ -129,6 +136,72 @@ describe('minimal two-player flow', () => {
 
     coordinator.close();
     vi.useRealTimers();
+  });
+
+  it('waits for both confirmed calibrations and cancels the countdown if readiness is lost', async () => {
+    vi.useFakeTimers();
+    const a = new FakeSocket('calibration-a');
+    const b = new FakeSocket('calibration-b');
+    const { coordinator } = coordinatorWith(a, b);
+    a.clientEmit('matchmaking.join', {});
+    b.clientEmit('matchmaking.join', {});
+
+    a.clientEmit('room.calibrated', { calibrated: true });
+    a.clientEmit('room.ready', { ready: true });
+    expect(a.messages('match.countdown')).toHaveLength(0);
+    b.clientEmit('room.calibrated', { calibrated: true });
+    expect(a.messages('match.countdown')).toHaveLength(0);
+    b.clientEmit('room.ready', { ready: true });
+    expect(a.messages('match.countdown')).toHaveLength(1);
+
+    a.clientEmit('room.calibrated', { calibrated: false });
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(a.messages('match.started')).toHaveLength(0);
+    expect(a.messages('match.countdownCancelled')).toHaveLength(1);
+
+    a.clientEmit('room.calibrated', { calibrated: true });
+    expect(a.messages('match.countdown')).toHaveLength(1);
+    a.clientEmit('room.ready', { ready: true });
+    expect(a.messages('match.countdown')).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(a.messages('match.started')).toHaveLength(1);
+    expect(b.messages('match.started')).toHaveLength(1);
+    coordinator.close();
+    vi.useRealTimers();
+  });
+
+  it('starts WebRTC negotiation only after both peers are ready and relays signaling', () => {
+    const a = new FakeSocket('rtc-a');
+    const b = new FakeSocket('rtc-b');
+    const { coordinator } = coordinatorWith(a, b);
+    a.clientEmit('matchmaking.join', {});
+    b.clientEmit('matchmaking.join', {});
+    const match = a.messages('matchmaking.matched')[0] as { matchId: string };
+
+    a.clientEmit('rtc.ready', { matchId: match.matchId });
+    expect(a.messages('rtc.start')).toHaveLength(0);
+    b.clientEmit('rtc.ready', { matchId: match.matchId });
+    expect(a.messages('rtc.start')).toEqual([{ matchId: match.matchId }]);
+    expect(b.messages('rtc.start')).toHaveLength(0);
+
+    a.clientEmit('rtc.signal', {
+      matchId: match.matchId,
+      description: { type: 'offer', sdp: 'offer-sdp' },
+    });
+    expect(b.messages('rtc.signal')).toContainEqual({
+      matchId: match.matchId,
+      description: { type: 'offer', sdp: 'offer-sdp' },
+    });
+
+    b.clientEmit('rtc.signal', {
+      matchId: match.matchId,
+      candidate: { candidate: 'candidate-data', sdpMid: '0', sdpMLineIndex: 0 },
+    });
+    expect(a.messages('rtc.signal')).toContainEqual({
+      matchId: match.matchId,
+      candidate: { candidate: 'candidate-data', sdpMid: '0', sdpMLineIndex: 0 },
+    });
+    coordinator.close();
   });
 });
 

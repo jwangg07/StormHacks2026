@@ -12,7 +12,9 @@ export function addSockets(
 ) {
   const io = new SocketServer(server, { cors: { origin: webOrigin } });
   const skins = new SkinRelay();
-  const multiplayer = new MultiplayerCoordinator(io, createMatch);
+  const multiplayer = new MultiplayerCoordinator(io, createMatch, (roomId) =>
+    skins.closeRoom(roomId),
+  );
 
   io.on('connection', (socket) => {
     socket.emit('server:ready', { connected: true });

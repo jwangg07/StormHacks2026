@@ -5,7 +5,10 @@ import {
   inviteActionSchema,
   inviteCreateSchema,
   matchConfig,
+  matchReferenceSchema,
+  otherSeat,
   readySchema,
+  rtcSignalSchema,
   type MatchSnapshot,
   type Seat,
   type ServerErrorPayload,
@@ -33,6 +36,7 @@ interface Room {
   match: AuthoritativeMatch;
   countdownStarted: boolean;
   inputIds: Set<string>;
+  rtcReady: Record<Seat, boolean>;
 }
 
 const error = (code: string, message: string, recoverable = true): ServerErrorPayload => ({
@@ -57,6 +61,7 @@ export class MultiplayerCoordinator {
   constructor(
     private readonly io: Server,
     private readonly createMatch: (options: MatchRuntimeOptions) => AuthoritativeMatch,
+    private readonly onRoomClosed: (roomId: string) => void = () => {},
   ) {
     this.simulationTimer = setInterval(() => this.tick(), 1_000 / matchConfig.tickRate);
     this.snapshotTimer = setInterval(
@@ -165,6 +170,7 @@ export class MultiplayerCoordinator {
       if (!parsed.success || !room || !player.seat)
         return this.reject(socket, ack, 'INVALID_INPUT', 'Invalid calibration update');
       room.calibrated[player.seat] = parsed.data.calibrated;
+      if (!parsed.data.calibrated) room.ready[player.seat] = false;
       ack?.({ ok: true });
       this.maybeCountdown(room);
     });
@@ -174,9 +180,35 @@ export class MultiplayerCoordinator {
       const room = this.roomFor(player);
       if (!parsed.success || !room || !player.seat)
         return this.reject(socket, ack, 'INVALID_INPUT', 'Invalid ready update');
+      if (parsed.data.ready && !room.calibrated[player.seat])
+        return this.reject(
+          socket,
+          ack,
+          'CALIBRATION_REQUIRED',
+          'Finish calibration before readying',
+        );
       room.ready[player.seat] = parsed.data.ready;
       ack?.({ ok: true });
       this.maybeCountdown(room);
+    });
+
+    socket.on('rtc.ready', (payload: unknown) => {
+      const parsed = matchReferenceSchema.safeParse(payload);
+      const room = this.roomFor(player);
+      if (!parsed.success || !room || !player.seat || parsed.data.matchId !== room.match.state.id)
+        return;
+      room.rtcReady[player.seat] = true;
+      if (room.rtcReady.A && room.rtcReady.B)
+        room.players.A.socket.emit('rtc.start', { matchId: room.match.state.id });
+    });
+
+    socket.on('rtc.signal', (payload: unknown) => {
+      if (Buffer.byteLength(JSON.stringify(payload)) > 110_000) return;
+      const parsed = rtcSignalSchema.safeParse(payload);
+      const room = this.roomFor(player);
+      if (!parsed.success || !room || !player.seat || parsed.data.matchId !== room.match.state.id)
+        return;
+      room.players[otherSeat(player.seat)].socket.emit('rtc.signal', parsed.data);
     });
 
     socket.on('game.input', (payload: unknown, ack?: Ack) => {
@@ -197,6 +229,12 @@ export class MultiplayerCoordinator {
         room.inputIds.delete(room.inputIds.values().next().value as string);
       if (!room.match.applyInput(player.seat, player.sessionId, parsed.data))
         return this.reject(socket, ack, 'STALE_INPUT', 'Input rejected');
+
+      room.players[otherSeat(player.seat)].socket.volatile.emit('game.opponentInput', {
+        seat: player.seat,
+        input: parsed.data,
+        serverTimestamp: Date.now(),
+      });
 
       if (parsed.data.punchAttempt) {
         const attack = room.match.requestPunch(player.seat, parsed.data.punchAttempt);
@@ -235,6 +273,10 @@ export class MultiplayerCoordinator {
     playerB.seat = 'B';
     playerA.socket.join(roomId);
     playerB.socket.join(roomId);
+    playerA.socket.data.roomId = roomId;
+    playerA.socket.data.seat = 'A';
+    playerB.socket.data.roomId = roomId;
+    playerB.socket.data.seat = 'B';
     const match = this.createMatch({
       roomId,
       playerASessionId: playerA.sessionId,
@@ -249,6 +291,7 @@ export class MultiplayerCoordinator {
       match,
       countdownStarted: false,
       inputIds: new Set(),
+      rtcReady: { A: false, B: false },
     };
     this.rooms.set(roomId, room);
     for (const seat of ['A', 'B'] as const) {
@@ -276,7 +319,15 @@ export class MultiplayerCoordinator {
     const startsAt = Date.now() + 3_000;
     this.io.to(room.id).emit('match.countdown', { matchId: room.match.state.id, startsAt });
     const timer = setTimeout(() => {
-      if (!this.rooms.has(room.id) || !room.match.start()) return;
+      if (!this.rooms.has(room.id)) return;
+      if (!room.ready.A || !room.ready.B || !room.calibrated.A || !room.calibrated.B) {
+        room.countdownStarted = false;
+        this.io.to(room.id).emit('match.countdownCancelled', {
+          matchId: room.match.state.id,
+        });
+        return;
+      }
+      if (!room.match.start()) return;
       this.io.to(room.id).emit('match.started', this.snapshot(room.match));
     }, 3_000);
     timer.unref();
@@ -380,10 +431,13 @@ export class MultiplayerCoordinator {
 
   private cleanupRoom(room: Room): void {
     if (!this.rooms.delete(room.id)) return;
+    this.onRoomClosed(room.id);
     for (const player of Object.values(room.players)) {
       if (player.roomId === room.id) {
         player.roomId = undefined;
         player.seat = undefined;
+        player.socket.data.roomId = undefined;
+        player.socket.data.seat = undefined;
       }
     }
   }

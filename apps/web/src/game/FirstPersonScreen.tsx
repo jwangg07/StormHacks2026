@@ -14,9 +14,13 @@ import { usePoseLandmarker } from '../motion/usePoseLandmarker';
 import { useMotionControls } from '../motion/useMotionControls';
 import { EYE_FORWARD, EYE_HEIGHT, FirstPersonArms } from './FirstPersonArms';
 import { useSkin } from '../avatar/skinStore';
+import { useBlobTexture, useSkinBlob } from '../avatar/skinStore';
+import { useMultiplayer } from '../net/MultiplayerProvider';
+import { publishSkin, useOpponentSkinBlob } from '../net/skinSync';
 import { useMultiplayerFight } from '../net/useMultiplayerFight';
 import { dodgeView, PUNCH_IMPACT_MS } from './boxingAnimation';
 import type { PunchCue } from './boxingAnimation';
+import { OpponentFighter } from './OpponentFighter';
 import './firstPerson.css';
 
 const CAMERA_POSITION: [number, number, number] = [0, EYE_HEIGHT, -EYE_FORWARD];
@@ -251,11 +255,18 @@ export function FirstPersonScreen() {
   const pose = usePoseLandmarker(videoRef, canvasRef, stream, true);
   const diagnostics = pose.diagnostics;
   const skin = useSkin();
+  const skinBlob = useSkinBlob();
   const motion = useMotionControls(pose, stream);
   const { subscribeControls } = motion;
   const calibrationOpen = motion.snapshot?.ready !== true;
   useVideoStream(videoRef, stream, fail, calibrationOpen ? 'dialog' : 'ring');
   const fight = useMultiplayerFight(motion);
+  const { socket, assignment, leaveFight } = useMultiplayer();
+  const opponentSkin = useBlobTexture(useOpponentSkinBlob(socket));
+
+  useEffect(() => {
+    if (assignment && skinBlob) void publishSkin(socket, skinBlob);
+  }, [assignment, skinBlob, socket]);
 
   useEffect(
     () =>
@@ -325,6 +336,7 @@ export function FirstPersonScreen() {
             />
             <SparringRoom impact={impact} />
             <Suspense fallback={null}>
+              <OpponentFighter input={fight.opponentInput?.input ?? null} skin={opponentSkin} />
               <FirstPersonArms punch={punch} controlsRef={motion.latestControls} skin={skin} />
             </Suspense>
           </Canvas>
@@ -354,7 +366,7 @@ export function FirstPersonScreen() {
       ) : null}
 
       <header className="fp-hud" aria-label="Sparring controls">
-        <Link className="fp-back" to="/">
+        <Link className="fp-back" to="/" onClick={leaveFight}>
           LEAVE THE RING
         </Link>
         <div className="fp-session-display">

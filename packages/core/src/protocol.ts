@@ -21,6 +21,18 @@ export const vector3Schema = z
 const kinematicsSchema = z
   .object({ x: finite(-20, 20), y: finite(-20, 20), z: finite(-20, 20) })
   .strict();
+const armDirectionSchema = z
+  .object({
+    upper: vector3Schema,
+    fore: vector3Schema,
+  })
+  .strict();
+export const avatarPoseSchema = z
+  .object({
+    left: armDirectionSchema.nullable(),
+    right: armDirectionSchema.nullable(),
+  })
+  .strict();
 export const handStateSchema = vector3Schema
   .extend({
     velocity: kinematicsSchema.optional(),
@@ -44,6 +56,7 @@ export const gameInputSchema = z
     guard: z.boolean(),
     duck: z.boolean(),
     punchAttempt: z.enum(['left', 'right']).optional(),
+    avatarPose: avatarPoseSchema.optional(),
   })
   .strict();
 
@@ -62,6 +75,26 @@ export const inviteAcceptSchema = z
   .strict();
 export const inviteActionSchema = z.object({ inviteId: z.string().min(1).max(64) }).strict();
 export const inviteCreateSchema = z.object({}).strict();
+export const matchReferenceSchema = z.object({ matchId: z.string().min(1).max(64) }).strict();
+const rtcDescriptionSchema = z
+  .object({ type: z.enum(['offer', 'answer']), sdp: z.string().max(100_000) })
+  .strict();
+const rtcCandidateSchema = z
+  .object({
+    candidate: z.string().max(4_096),
+    sdpMid: z.string().max(128).nullable().optional(),
+    sdpMLineIndex: z.number().int().nonnegative().nullable().optional(),
+    usernameFragment: z.string().max(256).nullable().optional(),
+  })
+  .strict();
+export const rtcSignalSchema = z
+  .object({
+    matchId: z.string().min(1).max(64),
+    description: rtcDescriptionSchema.optional(),
+    candidate: rtcCandidateSchema.optional(),
+  })
+  .strict()
+  .refine((value) => Boolean(value.description) !== Boolean(value.candidate));
 export const sessionResumeSchema = z
   .object({ sessionId: z.string().min(1).max(64), reconnectToken: z.string().min(32).max(128) })
   .strict();
@@ -72,8 +105,10 @@ export type RoomPhase = z.infer<typeof roomPhaseSchema>;
 export type MatchPhase = z.infer<typeof matchPhaseSchema>;
 export type GameInput = z.infer<typeof gameInputSchema>;
 export type ControlInput = GameInput;
+export type AvatarPose = z.infer<typeof avatarPoseSchema>;
 export type InviteAccept = z.infer<typeof inviteAcceptSchema>;
 export type InviteAction = z.infer<typeof inviteActionSchema>;
+export type RtcSignal = z.infer<typeof rtcSignalSchema>;
 export type Hand = 'left' | 'right';
 export interface ServerErrorPayload {
   code: string;
@@ -135,6 +170,11 @@ export interface MatchState {
   result?: MatchResult;
 }
 export interface MatchSnapshot extends MatchState {
+  serverTimestamp: number;
+}
+export interface OpponentInputPayload {
+  seat: Seat;
+  input: GameInput;
   serverTimestamp: number;
 }
 

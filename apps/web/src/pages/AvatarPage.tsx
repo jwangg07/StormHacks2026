@@ -99,11 +99,6 @@ export function AvatarPage() {
     );
   }
 
-  const appearanceLabel = !preview
-    ? 'DEFAULT GYM COLORS'
-    : state.result && !saved
-      ? 'UNSAVED SKIN PREVIEW'
-      : 'SAVED FIGHTER SKIN';
   const scanActive = state.phase === 'capturing' || state.phase === 'baking';
   const phaseLabel =
     state.phase === 'capturing'
