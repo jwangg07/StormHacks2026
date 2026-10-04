@@ -8,7 +8,7 @@ export type CapturePhase = 'loading' | 'framing' | 'capturing' | 'baking' | 'rev
 
 export interface SkinCaptureState {
   phase: CapturePhase;
-  /** The player pressed Start scan; capture begins once they are fully in view. */
+  /** Capture is armed and begins once the player is fully in view. */
   armed: boolean;
   fullBody: boolean;
   visible: boolean;
@@ -19,7 +19,7 @@ export interface SkinCaptureState {
   loadingMessage: string;
 }
 
-/** Whole body must stay in view this long after Start scan before capture begins. */
+/** Whole body must stay in view this long before capture begins. */
 const AUTO_START_MS = 1500;
 const EMPTY_SLOTS: boolean[] = Array(SLOT_COUNT).fill(false);
 const INITIAL: SkinCaptureState = {
@@ -58,7 +58,11 @@ export function describeCapture(state: SkinCaptureState): string {
   }
 }
 
-export function useSkinCapture(videoRef: RefObject<HTMLVideoElement | null>, stream: MediaStream | null) {
+export function useSkinCapture(
+  videoRef: RefObject<HTMLVideoElement | null>,
+  stream: MediaStream | null,
+  autoArm = false,
+) {
   const [state, setState] = useState<SkinCaptureState>(INITIAL);
   const [attempt, setAttempt] = useState(0);
   const client = useRef<CaptureClient | null>(null);
@@ -73,10 +77,10 @@ export function useSkinCapture(videoRef: RefObject<HTMLVideoElement | null>, str
     const update = (patch: (state: SkinCaptureState) => SkinCaptureState) => {
       if (!disposed) setState(patch);
     };
-    armed.current = false;
+    armed.current = autoArm;
     fullBodySince.current = null;
     // Defer so starting the effect does not synchronously update React state.
-    queueMicrotask(() => update(() => INITIAL));
+    queueMicrotask(() => update(() => ({ ...INITIAL, armed: autoArm })));
     loadFighterModelData()
       .then((model) => {
         if (disposed) return;
@@ -142,7 +146,7 @@ export function useSkinCapture(videoRef: RefObject<HTMLVideoElement | null>, str
       local?.dispose();
       client.current = null;
     };
-  }, [stream, attempt, videoRef]);
+  }, [stream, attempt, videoRef, autoArm]);
 
   const arm = useCallback(() => {
     armed.current = true;

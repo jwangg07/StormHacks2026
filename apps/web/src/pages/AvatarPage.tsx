@@ -18,7 +18,7 @@ export function AvatarPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { stream, fail, start } = camera;
   useVideoStream(videoRef, stream, fail);
-  const capture = useSkinCapture(videoRef, stream);
+  const capture = useSkinCapture(videoRef, stream, true);
   const { state } = capture;
   const savedBlob = useSkinBlob();
   const preview = useBlobTexture(state.result ?? savedBlob);
