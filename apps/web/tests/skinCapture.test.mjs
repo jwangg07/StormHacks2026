@@ -31,6 +31,24 @@ test('slot buffer keeps the best-scoring frame per slot', () => {
   assert.equal(buffer.count, 0);
 });
 
+test('a finished turn bakes only with enough slots, otherwise asks for a slower rescan', () => {
+  assert.equal(skin.captureStep({ done: false, filled: 5 }), 'continue');
+  assert.equal(skin.captureStep({ done: false, filled: 8 }), 'bake', 'all slots filled completes the scan');
+  assert.equal(skin.captureStep({ done: true, filled: skin.MIN_SLOTS_TO_FINISH }), 'bake');
+  assert.equal(skin.captureStep({ done: true, filled: skin.MIN_SLOTS_TO_FINISH - 1 }), 'too-few');
+});
+
+test('yaw tracking needs only one visible shoulder and one visible hip', () => {
+  const side = Array.from({ length: 33 }, () => lm(0.5, 0.5, 0.1));
+  side[11] = lm(0.5, 0.3, 0.9);
+  side[24] = lm(0.5, 0.6, 0.55);
+  assert.equal(skin.yawTrackable(side), true, 'side view: far shoulder and hip hidden');
+  assert.equal(skin.visible(side, skin.TORSO), false, 'framing still needs the whole torso');
+  side[24] = lm(0.5, 0.6, 0.4);
+  assert.equal(skin.yawTrackable(side), false, 'no hip visible');
+  assert.equal(skin.yawTrackable([]), false, 'no pose');
+});
+
 test('framing requires every full-body landmark on screen and visible', () => {
   const points = frontLandmarks();
   assert.ok(skin.visible(points, skin.FULL_BODY));

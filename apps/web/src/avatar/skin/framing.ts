@@ -14,6 +14,14 @@ export function visible(landmarks: readonly FrameLandmark[], indices: readonly n
   return indices.every((index) => onScreen(landmarks[index]));
 }
 
+/** While turning, the far shoulder and hip hide; one of each is enough to keep tracking yaw. */
+export const TRACK_VISIBLE = 0.5;
+const seen = (point: FrameLandmark | undefined) => !!point && point.visibility >= TRACK_VISIBLE;
+
+export function yawTrackable(landmarks: readonly FrameLandmark[]): boolean {
+  return (seen(landmarks[11]) || seen(landmarks[12])) && (seen(landmarks[23]) || seen(landmarks[24]));
+}
+
 export function meanVisibility(landmarks: readonly FrameLandmark[], indices: readonly number[]): number {
   return indices.reduce((sum, index) => sum + (landmarks[index]?.visibility ?? 0), 0) / indices.length;
 }

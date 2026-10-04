@@ -4,7 +4,7 @@ export interface CaptureStatus {
   phase: 'framing' | 'capturing';
   /** Head to ankles visible: required before capture starts. */
   fullBody: boolean;
-  /** Shoulders and hips visible: required for capture to progress. */
+  /** Framing: shoulders and hips visible. Capturing: at least one shoulder and one hip (yaw can be tracked). */
   visible: boolean;
   yawDeg: number | null;
   slots: boolean[];

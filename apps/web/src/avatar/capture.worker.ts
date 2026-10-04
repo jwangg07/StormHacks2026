@@ -3,10 +3,10 @@ import type { MPMask } from '@mediapipe/tasks-vision';
 import { AVATAR_SKIN_MAX_BYTES } from '@wb/core';
 import type { CaptureRequest, CaptureResponse, CaptureStatus } from './captureMessages';
 import { bakeSkin } from './skin/bake';
-import { FULL_BODY, frameScore, landmarkMotion, meanVisibility, TORSO, visible } from './skin/framing';
+import { FULL_BODY, frameScore, landmarkMotion, meanVisibility, TORSO, visible, yawTrackable } from './skin/framing';
 import type { ModelData } from './skin/parts';
 import type { CapturedFrame, FrameLandmark } from './skin/project';
-import { MIN_SLOTS_TO_FINISH, SLOT_COUNT, SlotBuffer, slotFor } from './skin/slots';
+import { captureStep, MIN_SLOTS_TO_FINISH, SlotBuffer, slotFor } from './skin/slots';
 import { buildTexelMap } from './skin/texelMap';
 import type { TexelMap } from './skin/texelMap';
 import { observeYaw, YawTracker } from './skin/yaw';
@@ -94,7 +94,8 @@ function handleFrame(bitmap: ImageBitmap, timestamp: number) {
       const raw = result.landmarks[0] ?? [];
       const landmarks: FrameLandmark[] = raw.map(({ x, y, visibility }) => ({ x, y, visibility: visibility ?? 0 }));
       const fullBody = visible(landmarks, FULL_BODY);
-      const torso = visible(landmarks, TORSO);
+      // Framing calibrates on the whole torso; while turning, the far shoulder and hip hide at the side.
+      const torso = phase === 'framing' ? visible(landmarks, TORSO) : yawTrackable(landmarks);
       const observation = torso ? observeYaw(raw, result.worldLandmarks[0] ?? [], bitmap.width / bitmap.height) : null;
       let yawDeg: number | null = null;
       if (phase === 'framing') {
@@ -107,7 +108,12 @@ function handleFrame(bitmap: ImageBitmap, timestamp: number) {
         const score = frameScore(meanVisibility(landmarks, FULL_BODY), motion);
         if (slot !== null && slots.accepts(slot, score))
           slots.put(slot, score, snapshot(bitmap, landmarks, result.segmentationMasks?.[0], turn.yawDeg));
-        if (turn.done || slots.count === SLOT_COUNT) queueMicrotask(() => void bake());
+        const step = captureStep({ done: turn.done, filled: slots.count });
+        if (step === 'bake') queueMicrotask(() => void bake());
+        else if (step === 'too-few') {
+          resetCapture();
+          send({ type: 'error', recoverable: true, message: 'Turn more slowly so every angle is captured, then scan again.' });
+        }
       }
       previous = landmarks.length ? landmarks : null;
       lastStatus = { phase, fullBody, visible: torso, yawDeg, slots: slots.filled };
@@ -124,6 +130,14 @@ function handleFrame(bitmap: ImageBitmap, timestamp: number) {
     bitmap.close();
     send({ type: 'status', status: lastStatus });
   }
+}
+
+/** Back to framing with a fresh tracker; it recalibrates from the next full-body frames. */
+function resetCapture() {
+  phase = 'framing';
+  slots.clear();
+  tracker = new YawTracker();
+  previous = null;
 }
 
 async function bake() {
@@ -183,10 +197,7 @@ scope.onmessage = ({ data }) => {
       break;
     case 'cancel':
       if (phase === 'baking') break;
-      phase = 'framing';
-      slots.clear();
-      tracker = new YawTracker();
-      previous = null;
+      resetCapture();
       break;
     case 'finish':
       if (phase === 'capturing' && slots.count >= MIN_SLOTS_TO_FINISH) void bake();

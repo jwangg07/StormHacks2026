@@ -39,3 +39,13 @@ export class SlotBuffer<T> {
     this.slots = Array(SLOT_COUNT).fill(null);
   }
 }
+
+/**
+ * What the capture does after a frame: bake once every slot is filled, or when the turn
+ * is done with enough slots; a done turn with too few slots means the player turned too fast.
+ */
+export function captureStep({ done, filled }: { done: boolean; filled: number }): 'continue' | 'bake' | 'too-few' {
+  if (filled >= SLOT_COUNT) return 'bake';
+  if (!done) return 'continue';
+  return filled >= MIN_SLOTS_TO_FINISH ? 'bake' : 'too-few';
+}
