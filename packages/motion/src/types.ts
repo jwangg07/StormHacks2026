@@ -1,4 +1,5 @@
 export type Hand = 'left' | 'right';
+export type PunchMove = 'jab' | 'cross' | 'hook' | 'uppercut';
 export type TrackingState = 'VALID' | 'LOW_CONFIDENCE' | 'LOST';
 
 export interface Landmark {
@@ -21,5 +22,7 @@ export interface MotionFrame {
   headOffset: { x: number; y: number; z?: number };
   guard: boolean;
   duck: boolean;
+  dodge?: Hand;
   punch?: Hand;
+  move?: PunchMove;
 }

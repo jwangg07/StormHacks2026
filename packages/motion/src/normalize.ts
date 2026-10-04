@@ -15,6 +15,7 @@ export const MOTION_FEATURE_VERSION = 3;
 export interface ArmFeatures {
   wrist: Landmark;
   shoulder: Landmark;
+  elbow?: Landmark;
   elbowAngle: number;
   imageElbowAngle: number;
   projectedForearm: number;
@@ -33,6 +34,7 @@ export interface NormalizedFeatures {
   headOffset: { x: number; y: number; z: number };
   headDrop: number;
   shoulderDrop: number;
+  shoulderBalance: number;
   arms: Record<'left' | 'right', ArmFeatures>;
   neutral: boolean;
 }
@@ -64,6 +66,8 @@ export class FeatureNormalizer {
     const projectedHead = project(points.nose);
     let headDrop = (projectedHead.y - baseline.head.y) / baseline.shoulderWidth;
     let shoulderDrop = (projectedCenter.y - baseline.shoulderCenter.y) / baseline.shoulderWidth;
+    const shoulderBalance =
+      (points.leftShoulder.y - points.rightShoulder.y) / width - (baseline.shoulderTilt ?? 0);
     const old = this.previous;
     const dt = old ? sample.frame.timestamp - old.timestamp : 0;
     const continuous = dt > 0 && dt <= 200;
@@ -84,10 +88,20 @@ export class FeatureNormalizer {
       const wrist = relative(project(points[`${hand}Wrist`]));
       const world = reliableWorldArm(sample, hand);
       if (world) wrist.z = clamp((world.wrist.z - world.shoulder.z) / world.width, -2.5, 2.5);
+      const shoulder = relative(project(points[`${hand}Shoulder`]));
+      const elbow = relative(project(points[`${hand}Elbow`]));
       const before = old?.arms[hand];
       if (continuous && before) {
-        wrist.x = before.wrist.x + (wrist.x - before.wrist.x) * xyAlpha;
-        wrist.y = before.wrist.y + (wrist.y - before.wrist.y) * xyAlpha;
+        for (const axis of ['x', 'y'] as const) {
+          const previous = before.wrist[axis] - before.shoulder[axis];
+          wrist[axis] =
+            shoulder[axis] + previous + (wrist[axis] - shoulder[axis] - previous) * xyAlpha;
+          if (before.elbow) {
+            const oldElbow = before.elbow[axis] - before.shoulder[axis];
+            elbow[axis] =
+              shoulder[axis] + oldElbow + (elbow[axis] - shoulder[axis] - oldElbow) * xyAlpha;
+          }
+        }
         if (before.depthReliable === !!world)
           wrist.z = before.wrist.z + (wrist.z - before.wrist.z) * zAlpha;
       }
@@ -120,15 +134,23 @@ export class FeatureNormalizer {
           : continuous && before?.worldReach !== undefined && before.depthReliable
             ? before.worldReach + (reach - before.worldReach) * xyAlpha
             : reach;
-      const shoulder = relative(project(points[`${hand}Shoulder`]));
       arms[hand] = {
         wrist,
         shoulder,
+        elbow,
         elbowAngle: smoothedAngle,
         imageElbowAngle,
         projectedForearm,
         worldReach,
-        wristSpeed: continuous && before ? (distance2(wrist, before.wrist) * 1000) / dt : 0,
+        wristSpeed:
+          continuous && before
+            ? (Math.hypot(
+                wrist.x - shoulder.x - (before.wrist.x - before.shoulder.x),
+                wrist.y - shoulder.y - (before.wrist.y - before.shoulder.y),
+              ) *
+                1000) /
+              dt
+            : 0,
         forwardSpeed:
           continuous && before && !!world === before.depthReliable
             ? clamp(((before.wrist.z - wrist.z) * 1000) / dt, -5, 5)
@@ -154,6 +176,7 @@ export class FeatureNormalizer {
       head,
       headDrop,
       shoulderDrop,
+      shoulderBalance,
       arms,
       neutral,
       headOffset: {

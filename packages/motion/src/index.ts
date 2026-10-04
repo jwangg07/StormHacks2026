@@ -1,4 +1,4 @@
-export type { Hand, Landmark, MotionFrame, PoseFrame, TrackingState } from './types';
+export type { Hand, Landmark, MotionFrame, PoseFrame, PunchMove, TrackingState } from './types';
 export {
   createPoseSample,
   POSE_LANDMARKS,
@@ -29,3 +29,4 @@ export type { PunchDiagnostic } from './detectors';
 export { MotionController, idleControls } from './controller';
 export type { MotionDiagnostics } from './controller';
 export { PracticeAdapter } from './practice';
+export { ArmIdentityTracker } from './armIdentity';

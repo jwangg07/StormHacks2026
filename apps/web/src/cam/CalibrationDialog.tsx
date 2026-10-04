@@ -26,8 +26,6 @@ export function CalibrationDialog({
   const calibration = status?.calibration;
   const tracking = pose.diagnostics;
   const usable = tracking?.phase === 'ready' && tracking.tracking === 'VALID';
-  const canReady =
-    calibration?.phase === 'ready' && usable && (tracking.canResume || !tracking.pauseRequired);
   const title = !camera.stream
     ? camera.status === 'error'
       ? 'Camera needs attention'
@@ -64,7 +62,7 @@ export function CalibrationDialog({
                   : calibration?.nextCheck === 'duck'
                     ? 'Bend your knees and lower your head and shoulders together.'
                     : calibration?.phase === 'ready'
-                      ? 'Hold valid tracking for one second, then confirm you are ready.'
+                      ? 'Hold valid tracking briefly. The ring opens automatically.'
                       : 'Stand comfortably with your hands near chest height.';
   const complete = calibration ? Object.values(calibration.checks).filter(Boolean).length : 0;
   const cameraStatus = !camera.stream
@@ -170,23 +168,16 @@ export function CalibrationDialog({
                   RETRY TRACKING
                 </button>
               ) : calibration?.phase === 'ready' ? (
-                <button
-                  type="button"
-                  className="fp-dialog-primary"
-                  onClick={motion.confirmReady}
-                  disabled={!canReady}
-                >
-                  {canReady ? 'STEP INTO THE RING' : 'HOLD YOUR STANCE…'}
-                </button>
+                <span className="fp-dialog-wait" role="status">
+                  <i /> ENTERING THE RING
+                </span>
               ) : (
                 <span className="fp-dialog-wait" role="status">
                   <i /> TRAINER IS WATCHING
                 </span>
               )}
             </div>
-            <p className="fp-dialog-footnote">
-              LOCAL CAMERA ONLY
-            </p>
+            <p className="fp-dialog-footnote">LOCAL CAMERA ONLY</p>
           </div>
 
           <aside className="fp-dialog-camera" aria-label="Camera framing check">

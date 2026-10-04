@@ -22,11 +22,8 @@ export function useMotionControls(
   const { subscribeSamples, setGeometry } = pose;
   const currentStream = useRef<MediaStream | null>(null);
   const confirmed = useRef(false);
-  const tracking = useRef({
-    tracking: 'LOST',
-    pauseRequired: true,
-    canResume: false,
-  } as import('@wb/motion').TrackingStatus);
+  const autoReadyPending = useRef(true);
+  const lastMove = useRef<{ label: string; timestamp: number } | null>(null);
   const { confirmTracking } = pose;
   const publish = useCallback(() => {
     const current = processor.current.diagnostics();
@@ -44,13 +41,17 @@ export function useMotionControls(
       ready: confirmed.current,
       controls,
       counts: practice.current.snapshot(),
-      feedback: controls.guard
-        ? 'Guard'
-        : controls.duck
-          ? 'Duck'
-          : last && performance.now() - last.timestamp < 1200
-            ? labels[last.action]
-            : 'Neutral',
+      feedback: controls.dodge
+        ? `Dodge ${controls.dodge}`
+        : controls.guard
+          ? 'Block'
+          : controls.duck
+            ? 'Duck'
+            : lastMove.current && performance.now() - lastMove.current.timestamp < 1200
+              ? lastMove.current.label
+              : last && performance.now() - last.timestamp < 1200
+                ? labels[last.action]
+                : 'Neutral',
     });
   }, []);
   useEffect(() => {
@@ -59,25 +60,44 @@ export function useMotionControls(
     latestControls.current = idleControls(performance.now(), 'LOST');
     currentStream.current = stream;
     confirmed.current = false;
+    autoReadyPending.current = true;
+    lastMove.current = null;
     setGeometry(undefined);
     let lastPublished = -Infinity;
     let lastPhase = 'idle';
     let lastAction = -Infinity;
     const send = (frame: MotionFrame) => {
       latestControls.current = frame;
+      if (frame.punch && frame.move)
+        lastMove.current = {
+          label: `${frame.punch === 'left' ? 'Left' : 'Right'} ${frame.move}`,
+          timestamp: performance.now(),
+        };
       practice.current.consume(frame);
       for (const listener of listeners.current) listener(frame);
     };
     return subscribeSamples((event) => {
-      tracking.current = event.state;
-      if (event.state.pauseRequired) confirmed.current = false;
+      if (event.state.pauseRequired) {
+        confirmed.current = false;
+        autoReadyPending.current = true;
+      }
       const controller = processor.current;
       if (event.kind === 'sample' && event.sample) {
         const candidate = controller.update(event.sample);
         const status = controller.diagnostics();
         setGeometry(controller.calibration.baseline?.segmentRatios);
-        send(
+        const activate =
+          autoReadyPending.current &&
           status.calibration.phase === 'ready' &&
+          candidate.tracking === 'VALID' &&
+          (!event.state.pauseRequired || (event.state.canResume && confirmTracking()));
+        if (activate) {
+          confirmed.current = true;
+          autoReadyPending.current = false;
+        }
+        send(
+          !activate &&
+            status.calibration.phase === 'ready' &&
             confirmed.current &&
             !event.state.pauseRequired &&
             candidate.tracking === 'VALID'
@@ -102,11 +122,13 @@ export function useMotionControls(
         publish();
       }
     });
-  }, [stream, subscribeSamples, setGeometry, publish]);
+  }, [stream, subscribeSamples, setGeometry, confirmTracking, publish]);
   const startCalibration = useCallback(() => {
     processor.current.startCalibration();
     practice.current = new PracticeAdapter();
     confirmed.current = false;
+    autoReadyPending.current = true;
+    lastMove.current = null;
     latestControls.current = idleControls(performance.now(), 'VALID');
     for (const listener of listeners.current) listener(latestControls.current);
     setGeometry(undefined);
@@ -127,16 +149,6 @@ export function useMotionControls(
       listeners.current.delete(listener);
     };
   }, []);
-  const confirmReady = useCallback(() => {
-    if (
-      processor.current.diagnostics().calibration.phase !== 'ready' ||
-      tracking.current.tracking !== 'VALID'
-    )
-      return;
-    if (tracking.current.pauseRequired && !confirmTracking()) return;
-    confirmed.current = true;
-    publish();
-  }, [confirmTracking, publish]);
   // Stream identity is stored with state so the UI never shows an old camera's calibration.
   return {
     snapshot: snapshot?.stream === stream ? snapshot : null,
@@ -144,7 +156,6 @@ export function useMotionControls(
     subscribeControls,
     startCalibration,
     setSensitivity,
-    confirmReady,
   };
 }
 

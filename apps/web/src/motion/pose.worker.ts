@@ -1,5 +1,5 @@
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
-import { createPoseSample } from '@wb/motion';
+import { ArmIdentityTracker, createPoseSample } from '@wb/motion';
 import type { WorkerRequest, WorkerResponse } from './messages';
 
 // The web tsconfig also includes DOM globals. Keep the worker boundary explicit.
@@ -11,6 +11,7 @@ const scope = self as unknown as {
 let landmarker: PoseLandmarker | null = null;
 let initializing = false;
 let disposed = false;
+const armIdentity = new ArmIdentityTracker();
 
 function send(message: WorkerResponse) {
   if (!disposed) scope.postMessage(message);
@@ -72,12 +73,14 @@ scope.onmessage = ({ data }) => {
       const inferenceMs = performance.now() - started;
       send({
         type: 'result',
-        sample: createPoseSample(
-          result.landmarks[0] ?? [],
-          timestamp,
-          bitmap.width,
-          bitmap.height,
-          result.worldLandmarks[0] ?? [],
+        sample: armIdentity.update(
+          createPoseSample(
+            result.landmarks[0] ?? [],
+            timestamp,
+            bitmap.width,
+            bitmap.height,
+            result.worldLandmarks[0] ?? [],
+          ),
         ),
         inferenceMs,
       });

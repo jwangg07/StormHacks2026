@@ -35,19 +35,20 @@ Manual device checks:
    laptops. Confirm VALID with all required points visible. Hide a wrist to get
    LOW_CONFIDENCE; leave the frame to get LOST. The overlay holds the last valid
    pose for at most 200 ms. Input gate pauses after 500 ms of invalid tracking.
-10. Restore tracking for one second, then choose **Confirm Ready** after setup. A camera
+10. Restore tracking for one second and confirm the ring resumes automatically after setup. A camera
     stop or hidden tab releases inference resources and requires a fresh start.
 11. Block the local model/WASM URLs and retry tracking. Confirm a useful error;
     camera playback must remain available. Restore the files and retry.
 
 12. Step into frame: calibration starts automatically on a VALID pose. Follow the
     trainer dialog and hold neutral for three seconds. Moving or hiding a required landmark resets
-    the hold. Perform each prompted action; Ready stays disabled until all four
-    are recognized. Confirm Ready and verify the dialog closes and local practice counts update once
+    the hold. Perform each prompted action; the dialog closes automatically once all four
+    are recognized and tracking is stable. Verify local practice counts update once
     per punch and once per defense entry.
 13. Hold an extended arm, return it to rest, and punch again. Test rapid alternating
-    hands and simultaneous punches; confirm the shared 450 ms cooldown and no
-    duplicate attack. Test guard entry/release and attack/defense exclusivity.
+    hands and simultaneous punches; confirm the per-hand 320 ms cooldown, 140 ms opposite-hand gap, and no
+    duplicate attack. Test overlapping hands and guard entry/release; the other
+    hand should retain its block during a punch.
 14. Duck with head and shoulders together, then try a head nod. A nod must not
     count. Hold a crouch: duck expires after 800 ms and cannot rearm until at least
     400 ms near neutral. Test changed camera distance and low lighting.

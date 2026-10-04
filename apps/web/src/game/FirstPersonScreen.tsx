@@ -1,9 +1,10 @@
 import { Component, Suspense, useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import type { Group } from 'three';
+import type { Group, MeshStandardMaterial } from 'three';
 import { Link } from 'react-router';
-import { PerspectiveCamera } from '@react-three/drei';
+import { Html, PerspectiveCamera } from '@react-three/drei';
+import type { MotionFrame } from '@wb/motion';
 import { useCamera } from '../cam/useCamera';
 import { CameraView } from '../cam/CameraView';
 import { useVideoStream } from '../cam/useVideoStream';
@@ -14,7 +15,12 @@ import { useMotionControls } from '../motion/useMotionControls';
 import { EYE_FORWARD, EYE_HEIGHT, FirstPersonArms } from './FirstPersonArms';
 import { useSkin } from '../avatar/skinStore';
 import { useMultiplayerFight } from '../net/useMultiplayerFight';
+import { dodgeView, PUNCH_IMPACT_MS } from './boxingAnimation';
+import type { PunchCue } from './boxingAnimation';
 import './firstPerson.css';
+
+const CAMERA_POSITION: [number, number, number] = [0, EYE_HEIGHT, -EYE_FORWARD];
+const CAMERA_ROTATION: [number, number, number] = [-0.2, 0, 0];
 
 class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -34,20 +40,58 @@ class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean
   }
 }
 
-function HeavyBag() {
-  const bag = useRef<Group>(null);
-  useFrame(({ clock }) => {
-    if (bag.current) bag.current.rotation.z = Math.sin(clock.elapsedTime * 0.55) * 0.035;
+function DodgeCamera({ controlsRef }: { controlsRef: RefObject<MotionFrame> }) {
+  useFrame(({ camera }, dt) => {
+    const target = dodgeView(controlsRef.current.dodge);
+    const alpha = 1 - Math.exp(-dt / 0.07);
+    camera.position.x += (target.x - camera.position.x) * alpha;
+    camera.rotation.z += (target.roll - camera.rotation.z) * alpha;
   });
   return (
-    <group ref={bag} position={[0, 1.38, -7.1]}>
+    <PerspectiveCamera
+      makeDefault
+      position={CAMERA_POSITION}
+      rotation={CAMERA_ROTATION}
+      fov={70}
+      near={0.02}
+      far={50}
+    />
+  );
+}
+
+function HeavyBag({ impact }: { impact: PunchCue | null }) {
+  const bag = useRef<Group>(null);
+  const bodyMaterial = useRef<MeshStandardMaterial>(null);
+  const lastImpact = useRef<number | null>(null);
+  const flashAt = useRef(-Infinity);
+  useFrame(({ clock }) => {
+    if (impact && lastImpact.current !== impact.id) {
+      lastImpact.current = impact.id;
+      flashAt.current = performance.now();
+    }
+    const age = performance.now() - flashAt.current;
+    const flash = Math.max(0, 1 - age / 240);
+    if (bodyMaterial.current) {
+      bodyMaterial.current.color
+        .set('#75452f')
+        .lerp(bodyMaterial.current.emissive.set('#ff2128'), flash * 0.85);
+      bodyMaterial.current.emissiveIntensity = flash * 2;
+    }
+    if (bag.current) {
+      const recoil = age < 650 ? Math.sin(age / 85) * Math.exp(-age / 260) * 0.18 : 0;
+      bag.current.rotation.z =
+        Math.sin(clock.elapsedTime * 0.55) * 0.035 + recoil * (impact?.hand === 'left' ? 1 : -1);
+    }
+  });
+  return (
+    <group ref={bag} position={[0, 1.38, -1.3]}>
       <mesh position={[0, 1.45, 0]}>
         <cylinderGeometry args={[0.04, 0.04, 1.15, 6]} />
         <meshStandardMaterial color="#6d6654" roughness={1} flatShading />
       </mesh>
       <mesh position={[0, 0.03, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[0.42, 0.56, 1.55, 9, 1]} />
-        <meshStandardMaterial color="#75452f" roughness={0.98} flatShading />
+        <meshStandardMaterial ref={bodyMaterial} color="#75452f" roughness={0.98} flatShading />
       </mesh>
       {[-0.53, 0.55].map((y) => (
         <mesh key={y} position={[0, y, 0]}>
@@ -69,11 +113,21 @@ function HeavyBag() {
         <torusGeometry args={[0.32, 0.045, 4, 8]} />
         <meshStandardMaterial color="#4a392f" roughness={1} flatShading />
       </mesh>
+      {impact ? (
+        <Html
+          key={impact.id}
+          center
+          position={[impact.hand === 'left' ? -0.2 : 0.2, 0.16, 0.6]}
+          distanceFactor={1.9}
+        >
+          <span className="fp-hit-marker">Hit!</span>
+        </Html>
+      ) : null}
     </group>
   );
 }
 
-function SparringRoom() {
+function SparringRoom({ impact }: { impact: PunchCue | null }) {
   const sides = [-1, 1];
   return (
     <group>
@@ -165,7 +219,7 @@ function SparringRoom() {
           ))}
         </group>
       ))}
-      <HeavyBag />
+      <HeavyBag impact={impact} />
       {[-4.2, 4.2].map((x) => (
         <group key={`lamp-${x}`} position={[x, 4.4, -4.5]}>
           <mesh position={[0, 0.15, 0]}>
@@ -188,6 +242,8 @@ function SparringRoom() {
 
 export function FirstPersonScreen() {
   const [setupOpen, setSetupOpen] = useState(false);
+  const [punch, setPunch] = useState<PunchCue | null>(null);
+  const [impact, setImpact] = useState<PunchCue | null>(null);
   const camera = useCamera();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -196,9 +252,36 @@ export function FirstPersonScreen() {
   const diagnostics = pose.diagnostics;
   const skin = useSkin();
   const motion = useMotionControls(pose, stream);
+  const { subscribeControls } = motion;
   const calibrationOpen = motion.snapshot?.ready !== true;
-  useVideoStream(videoRef, stream, fail, calibrationOpen ? 'dialog' : 'panel');
+  useVideoStream(videoRef, stream, fail, calibrationOpen ? 'dialog' : 'ring');
   const fight = useMultiplayerFight(motion);
+
+  useEffect(
+    () =>
+      subscribeControls((frame) => {
+        if (frame.tracking !== 'VALID' || !frame.punch) return;
+        setPunch({
+          id: frame.timestamp,
+          hand: frame.punch,
+          move: frame.move ?? (frame.punch === 'left' ? 'jab' : 'cross'),
+          at: performance.now(),
+        });
+      }),
+    [subscribeControls],
+  );
+
+  useEffect(() => {
+    if (!punch) return;
+    const contact = window.setTimeout(() => setImpact(punch), PUNCH_IMPACT_MS);
+    const clear = window.setTimeout(() => setImpact(null), PUNCH_IMPACT_MS + 650);
+    const release = window.setTimeout(() => setPunch(null), 1000);
+    return () => {
+      window.clearTimeout(contact);
+      window.clearTimeout(clear);
+      window.clearTimeout(release);
+    };
+  }, [punch]);
 
   // Entering this screen is the player's choice to set up, so request the camera now.
   const startOnce = useRef(start);
@@ -226,14 +309,7 @@ export function FirstPersonScreen() {
             shadows
             gl={{ antialias: false, powerPreference: 'high-performance' }}
           >
-            <PerspectiveCamera
-              makeDefault
-              position={[0, EYE_HEIGHT, -EYE_FORWARD]}
-              rotation={[-0.2, 0, 0]}
-              fov={70}
-              near={0.02}
-              far={50}
-            />
+            <DodgeCamera controlsRef={motion.latestControls} />
             <color attach="background" args={['#171a18']} />
             <fog attach="fog" args={['#171a18', 12, 27]} />
             <hemisphereLight args={['#c9b58c', '#171918', 0.95]} />
@@ -247,14 +323,35 @@ export function FirstPersonScreen() {
               distance={18}
               color="#e5bc7e"
             />
-            <SparringRoom />
+            <SparringRoom impact={impact} />
             <Suspense fallback={null}>
-              <FirstPersonArms sampleRef={pose.latestSample} skin={skin} />
+              <FirstPersonArms punch={punch} controlsRef={motion.latestControls} skin={skin} />
             </Suspense>
           </Canvas>
         </SceneBoundary>
       </div>
       <div className="fp-film-grain" aria-hidden="true" />
+
+      {!calibrationOpen ? (
+        <aside className="fp-ring-preview" aria-label="Live camera preview">
+          <div className="fp-ring-preview-heading">LIVE CAMERA</div>
+          <CameraView videoRef={videoRef} canvasRef={canvasRef} stream={stream} />
+          <div className="fp-ring-preview-status" data-state={diagnostics?.tracking ?? 'LOST'}>
+            <span
+              className="fp-dot"
+              data-state={diagnostics?.tracking ?? 'LOST'}
+              aria-hidden="true"
+            />
+            {status}
+          </div>
+        </aside>
+      ) : null}
+
+      {punch ? (
+        <div className="fp-move-callout" key={punch.id} role="status">
+          {punch.hand.toUpperCase()} {punch.move.toUpperCase()}
+        </div>
+      ) : null}
 
       <header className="fp-hud" aria-label="Sparring controls">
         <Link className="fp-back" to="/">
@@ -298,9 +395,6 @@ export function FirstPersonScreen() {
           </div>
           <span className="fp-step-stamp">01</span>
         </div>
-        {!calibrationOpen ? (
-          <CameraView videoRef={videoRef} canvasRef={canvasRef} stream={stream} />
-        ) : null}
         <div className="fp-camera-bar">
           <span
             className="fp-dot"

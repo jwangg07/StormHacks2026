@@ -34,20 +34,20 @@ A safe pose may be held for at most 200 ms; it is never passed off as a new samp
 
 `TrackingMonitor` exposes `pauseRequired` and `canResume`. Invalid tracking for
 500 ms latches a pause; a camera stop pauses immediately. Samples stopping for
-200 ms become LOST. One second of continuous valid samples plus explicit
-confirmation is required to clear the gate, including initial startup.
+200 ms become LOST. One second of continuous valid samples clears the gate
+automatically once calibration is complete.
 `MotionController` starts calibration automatically on the first VALID pose of a
 camera session, without a Start calibration click. `/game` presents the initial
 calibration guide as a trainer dialog: neutral countdown, left punch, right punch,
-guard, duck, and ready confirmation. Confirm Ready closes the dialog and enables
-local practice. The movement setup drawer retains camera controls, sensitivity,
+guard, and duck. The dialog closes automatically and enables local practice.
+The movement setup drawer retains camera controls, sensitivity,
 counts, and diagnostics; Recalibrate opens the guided dialog again. Incomplete
 tracking asks the player to step into frame and cannot advance setup.
 `useMotionControls` combines this with calibration: hold a visible neutral stance
 for three uninterrupted seconds, then demonstrate left punch, right punch, guard,
-and duck in order. Only **Confirm Ready** enables local practice controls. Camera
+and duck in order. Completion enables local practice controls automatically. Camera
 changes discard calibration; tracking loss cancels defense and gesture history,
-requires a fresh bent-arm rearm, and requires confirmation after recovery.
+requires a fresh bent-arm rearm, and resumes automatically after stable tracking.
 
 `MotionController` owns the pure calibration/feature/detector pipeline in
 `packages/motion`. Median calibration captures shoulder width, head/torso rest,
@@ -57,31 +57,66 @@ quiet neutral stance after setup; actions never update it. Velocities use actual
 sample timestamps. Adaptive pose smoothing damps rest jitter, follows fast arm
 motion, filters depth more strongly, and resets across long gaps.
 
-Straight punches require wrist motion and elbow extension within 250 ms. Depth can support
-evidence but never trigger an attack alone. Image-plane punches require projected
-speed and outward reach. Front-camera punches instead require consistent estimated
-3D elbow extension and outward reach, forward travel/speed, and independently
-visible forearm foreshortening. There is no mandatory 150-degree elbow lockout.
-Image elbow evidence remains continuous across world-landmark dropouts; credible
-world angles prevent a retracting foreshortened arm being classified as a punch.
-Both calibrated chest rest and a bent face-level guard can rearm a hand.
-A fast bent-arm swing can also emit the existing left/right punch action without
-elbow opening: at least 35 degrees of shoulder-relative wrist arc, 0.45 shoulder
-widths of travel, and 2 shoulder widths/s within 250 ms at default sensitivity.
-It requires maintained reach rather than arm retraction. Vertical guard raises
-ending near the face and motion back into calibrated rest are rejected. Rearming
-starts a fresh per-hand detection window so the return stroke cannot replay an
-old candidate. These wider/diagonal gestures use the same canonical game attacks;
-they do not introduce separate hook damage, hitboxes, or packet types.
-A shared 450 ms cooldown, per-hand
-rest rearm, and deterministic strongest/left-tie selection prevent repeat events.
-Guard enters after 100 ms and exits after 150 ms. Duck needs both head and shoulder
-drop, enters after 100 ms, uses a smaller exit threshold, expires at 800 ms, and
-requires 400 ms neutral to rearm. Attacks suppress both defenses during recovery.
+Punch recognition selects a fast attacking limb, then classifies that limb's path.
+Wrist and elbow travel are measured relative to the arm's own shoulder. Current speed
+must reach 2 shoulder widths/s to start a curved strike. Straight jab/cross attacks
+require 3 shoulder widths/s in both the launch window and latest movement sample,
+plus at least 0.22 of image travel, 0.16 of corroborated forward depth travel, or
+0.24 of combined wrist/elbow travel with foreshortening. A generic curved strike's
+confirmation cannot bypass these stricter straight requirements.
+Fast outward wrist movement can register without elbow extension or consistent world
+angles. Image movement needs at least 0.16 shoulder widths of travel to reject
+small fast movements. Hooks need 0.24 travel and a 20-degree arc with a bent arm.
+Uppercuts must start below shoulder level and rise at least 0.35, with vertical
+travel at least twice lateral travel. An extending diagonal jab stays a straight.
+Credible forward depth pushes require at least 0.12 of depth travel plus visible movement or
+forearm foreshortening. When world depth is missing, a fast elbow plus a shrinking
+forearm projection and some wrist movement can still identify a forward punch.
+This corroborated extension may shrink image reach without being treated as recoil.
+Depth spikes alone, body sway, retractions, downward block releases, and coordinated
+raises into guard are rejected. A clear return toward the strike's launch pose rearms
+the hand immediately, including moving recovery in fast combinations. Quiet chest
+rest or face-level guard is a fallback after 80 ms; elbow locking is not required.
 
-`/game` exposes guided calibration in a dialog and sensitivity, local feedback,
-counts, and developer diagnostics in the movement setup drawer. First-person arms consume smoothed estimated
-directions and calibrated segment ratios. `latestControls` and `subscribeControls`
+The current motion speed selects the hand before path confidence breaks ties. Straight
+left/right attacks use jab/cross, rising close bent arms use uppercuts, and curved
+sweeps use hooks. A 60 ms window from the launch sample lets the path develop before
+emitting one label, including short strikes that stop or return to their launch pose
+during confirmation. Completed out-and-back strikes retain their observed attack
+instead of disappearing during recoil. The launch
+point stays fixed as a hook develops; uncertain paths do not default to jabs.
+Each hand has a 160 ms cooldown. A fresh opposite-hand strike can
+register after a 60 ms gap. Both hands are analyzed during recovery so a brief
+opposite-hand attack can survive the gap rather than being dropped.
+These attacks retain the canonical game damage, hitboxes, and packet types.
+
+Before normalization, the worker's ArmIdentityTracker compares overlapping wrists
+with their recent trajectories and their anatomical elbow chains.
+When both hands meet, trajectory extrapolation pauses and elbow attachment helps
+resolve their separation, allowing the hands to reverse direction without swapping.
+It corrects a wrist-label swap only when the alternate assignment fits clearly better; it never
+assigns hands by which side of the image they occupy. Image and world wrists are
+corrected together, and identity history resets after invalid tracking or long gaps.
+Guard enters after 100 ms and stays latched regardless of elbow-angle noise or punch
+cooldown. It exits only after a hand visibly drops below its shoulder for 150 ms, or
+tracking is lost. A left or right dodge requires matching shoulder tilt of at least
+0.26 and head travel of at least 0.28 shoulder widths for 100 ms. Lower hold thresholds
+and a 90 ms exit delay prevent jitter; the first-person camera leans and rolls until
+the player re-centers. Right rolls clockwise and left rolls counterclockwise.
+Duck needs both head and shoulder
+drop, enters after 100 ms, uses a smaller exit threshold, expires at 800 ms, and
+requires 400 ms neutral to rearm. Attacks suppress duck and dodge during recovery.
+
+`/game` exposes guided calibration in a dialog, a live camera preview at the bottom left,
+and sensitivity, local feedback, counts, and developer diagnostics in the movement setup drawer.
+Detected straight left/right punches play jab/cross clips; broad bent swings play hooks,
+and outward rising swings play uppercuts. The first-person arms use these scripted clips
+from guard rather than continuous pose retargeting. Only the selected arm animates;
+the root stays fixed and the opposite arm retains its guard throughout the clip.
+Punch clips reach contact at 75 ms and finish at 220 ms. The selected arm reaches
+55% farther at contact and restores its original length during recovery.
+The nearby bag flashes and displays
+a hit marker at the animation's impact time. `latestControls` and `subscribeControls`
 expose only normalized `MotionFrame` values; `PracticeAdapter` counts action edges.
 The future SocketInputAdapter must forward pause requests and attach the shared
 packet envelope. This change does not connect combat or multiplayer inputs; the
@@ -89,7 +124,7 @@ server remains responsible for match readiness, pause/resume, and accepted attac
 
 Movement diagnostics include per-hand detector status, best recent extension,
 image speed, and forward speed, so a missed candidate can be distinguished from
-cooldown, lack of rearm, inadequate extension/motion, and tracking loss. These
+cooldown, lack of rearm, inadequate motion, and tracking loss. These
 features and model depth stay local. Normalized feature contract version is 3;
 the `MotionFrame` control contract is unchanged.
 

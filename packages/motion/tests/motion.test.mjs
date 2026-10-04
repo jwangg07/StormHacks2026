@@ -3,7 +3,7 @@ import test from 'node:test';
 import { loadMotion } from './loadMotion.mjs';
 
 const { createPoseSample, POSE_LANDMARKS } = await loadMotion('pose');
-const { Calibration } = await loadMotion('calibration');
+const { Calibration, CALIBRATION_MS } = await loadMotion('calibration');
 const { FeatureNormalizer } = await loadMotion('normalize');
 const { ActionDetector } = await loadMotion('detectors');
 const { MotionController } = await loadMotion('controller');
@@ -76,6 +76,7 @@ function features(timestamp, changes = {}) {
   };
 }
 const extended = { wrist: point(1.7, 0), elbowAngle: 175, restDistance: 1, reach: 1.2 };
+const rightExtended = { ...extended, wrist: point(-1.7, 0) };
 const guardArms = { left: { wrist: point(0.35, -0.8) }, right: { wrist: point(-0.35, -0.8) } };
 
 test('calibration automatically starts on a valid pose once and preserves completed baseline across tracking loss', () => {
@@ -96,12 +97,12 @@ test('calibration automatically starts on a valid pose once and preserves comple
 test('calibration needs a continuous neutral hold, rejects occlusion and requires all four checks', () => {
   const c = new Calibration();
   c.start();
-  for (let t = 0; t <= 2000; t += 50) c.update(sample(t));
-  c.update(sample(2050, { leftWrist: point(0.66, 0.52, 0, 0.1) }));
+  for (let t = 0; t < CALIBRATION_MS; t += 20) c.update(sample(t));
+  c.update(sample(CALIBRATION_MS - 10, { leftWrist: point(0.66, 0.52, 0, 0.1) }));
   assert.equal(c.snapshot().progress, 0);
-  for (let t = 2100; t <= 5050; t += 50) c.update(sample(t));
+  for (let t = CALIBRATION_MS; t < CALIBRATION_MS * 2; t += 20) c.update(sample(t));
   assert.equal(c.baseline, null);
-  c.update(sample(5100));
+  c.update(sample(CALIBRATION_MS * 2));
   assert.ok(Math.abs(c.baseline.shoulderWidth - 0.24) < 1e-8);
   assert.ok(c.baseline.segmentRatios.left.upper > 0.35);
   assert.ok(c.baseline.torso.y > c.baseline.shoulderCenter.y);
@@ -135,18 +136,20 @@ test('velocities use elapsed time and reset across a tracking gap', () => {
   assert.equal(n.update(sample(3600), baseline).arms.left.wristSpeed, 0);
 });
 
-test('punches are one-shot, share cooldown, need return to rest and ignore duplicate timestamps', () => {
+test('punches are one-shot, recover per hand, need return to rest and ignore duplicate timestamps', () => {
   const d = new ActionDetector();
   d.update(features(0));
   d.update(features(50));
   assert.equal(d.update(features(150, { left: extended })).punch, 'left');
   assert.equal(d.update(features(150, { left: extended })).punch, undefined);
-  for (let t = 200; t < 700; t += 50)
-    assert.equal(d.update(features(t, { left: extended, right: extended })).punch, undefined);
+  assert.equal(d.update(features(200, { left: extended, right: rightExtended })).punch, undefined);
+  assert.equal(d.update(features(250, { left: extended, right: rightExtended })).punch, 'right');
+  for (let t = 300; t < 700; t += 50)
+    assert.equal(d.update(features(t, { left: extended, right: rightExtended })).punch, undefined);
   d.update(features(700));
-  assert.equal(d.update(features(800, { right: extended })).punch, 'right');
+  assert.equal(d.update(features(800, { right: rightExtended })).punch, 'right');
   d.update(features(850));
-  assert.equal(d.update(features(950, { left: extended })).punch, undefined);
+  assert.equal(d.update(features(950, { left: extended })).punch, 'left');
 });
 
 test('simultaneous punches choose strongest then left on a tie; depth alone cannot attack', () => {
@@ -170,7 +173,7 @@ test('simultaneous punches choose strongest then left on a tie; depth alone cann
   );
 });
 
-test('guard uses entry/exit hysteresis and attacks suppress both defenses', () => {
+test('guard uses entry/exit hysteresis and attacks suppress duck', () => {
   const d = new ActionDetector();
   assert.equal(d.update(features(0, guardArms)).guard, false);
   assert.equal(d.update(features(50, guardArms)).guard, false);
@@ -178,10 +181,103 @@ test('guard uses entry/exit hysteresis and attacks suppress both defenses', () =
   assert.equal(d.update(features(150)).guard, true);
   assert.equal(d.update(features(250)).guard, true);
   assert.equal(d.update(features(300)).guard, false);
-  const frame = d.update(features(350, { left: extended, headDrop: 0.5, shoulderDrop: 0.5 }));
+  d.update(features(350, { left: extended, headDrop: 0.5, shoulderDrop: 0.5 }));
+  const frame = d.update(features(400, { left: extended, headDrop: 0.5, shoulderDrop: 0.5 }));
   assert.equal(frame.punch, 'left');
   assert.equal(frame.guard, false);
   assert.equal(frame.duck, false);
+});
+
+test('a held block has no timer and releases only after hands lower', () => {
+  const d = new ActionDetector();
+  for (let t = 0; t <= 3000; t += 50) {
+    const frame = d.update(features(t, guardArms));
+    if (t >= 100) assert.equal(frame.guard, true);
+  }
+  d.update(features(3050));
+  d.update(features(3150));
+  assert.equal(d.update(features(3200)).guard, false);
+});
+
+test('shoulder balance and head movement select a held left or right dodge', () => {
+  const d = new ActionDetector();
+  const lean = (time, balance, headX) =>
+    features(time, { shoulderBalance: balance, headOffset: { x: headX, y: 0, z: 0 } });
+  assert.equal(d.update(lean(0, 0.2, 0)).dodge, undefined, 'shoulder motion alone');
+  assert.equal(d.update(lean(50, 0, 0.2)).dodge, undefined, 'head motion alone');
+  for (let t = 100; t <= 300; t += 50)
+    assert.equal(d.update(lean(t, 0.2, 0.2)).dodge, undefined, 'small sway is ignored');
+  d.update(lean(350, 0.35, 0.35));
+  assert.equal(d.update(lean(400, 0.35, 0.35)).dodge, undefined, 'brief lean is ignored');
+  assert.equal(d.update(lean(450, 0.35, 0.35)).dodge, 'left', 'responds after 100ms');
+  for (let t = 600; t <= 850; t += 50)
+    assert.equal(d.update(lean(t, 0.2, 0.2)).dodge, 'left', 'hold continues');
+  d.update(lean(900, 0, 0));
+  assert.equal(d.update(lean(1000, 0, 0)).dodge, undefined, 're-centers within 100ms');
+  d.update(lean(1150, -0.35, -0.35));
+  assert.equal(d.update(lean(1250, -0.35, -0.35)).dodge, 'right');
+});
+
+test('block remains latched through elbow noise and wide raised hands', () => {
+  const d = new ActionDetector();
+  for (let t = 0; t <= 150; t += 50) d.update(features(t, guardArms));
+  for (let t = 200; t <= 2500; t += 50) {
+    const noise = Math.sin(t) * 0.1;
+    const frame = d.update(
+      features(t, {
+        left: { wrist: point(0.8 + noise, -0.5), elbowAngle: 175, depthReliable: t % 100 === 0 },
+        right: { wrist: point(-0.8 - noise, -0.5), elbowAngle: 175, depthReliable: t % 100 === 0 },
+      }),
+    );
+    assert.equal(frame.guard, true, 'raised wrists keep the block regardless of elbow estimates');
+  }
+  const frame = d.update(
+    features(2600, {
+      left: { ...extended, wrist: point(1.7, -0.5) },
+      right: guardArms.right,
+    }),
+  );
+  // A strike can animate one arm while the other continues to cover the face.
+  assert.equal(frame.guard, true);
+  for (let t = 2650; t <= 3000; t += 50) assert.equal(d.update(features(t, guardArms)).guard, true);
+  d.update(features(3050));
+  assert.equal(d.update(features(3200)).guard, false);
+});
+
+test('a punch from block keeps the other hand blocking throughout recovery', () => {
+  const d = new ActionDetector();
+  for (let t = 0; t <= 150; t += 50) d.update(features(t, guardArms));
+  const attack = {
+    left: { ...extended, wrist: point(1.7, -0.5) },
+    right: guardArms.right,
+  };
+  d.update(features(200, attack));
+  const frame = d.update(features(250, attack));
+  assert.equal(frame.punch, 'left');
+  assert.equal(frame.guard, true);
+  for (let t = 300; t <= 1000; t += 50) assert.equal(d.update(features(t, guardArms)).guard, true);
+});
+
+test('calibrated shoulder tilt keeps left and right dodge evidence directional', () => {
+  const baseline = calibrate().baseline;
+  const left = new FeatureNormalizer().update(
+    sample(3200, {
+      nose: point(0.54, 0.25),
+      leftShoulder: point(0.62, 0.49),
+      rightShoulder: point(0.38, 0.41),
+    }),
+    baseline,
+  );
+  const right = new FeatureNormalizer().update(
+    sample(3200, {
+      nose: point(0.46, 0.25),
+      leftShoulder: point(0.62, 0.41),
+      rightShoulder: point(0.38, 0.49),
+    }),
+    baseline,
+  );
+  assert.ok(left.shoulderBalance > 0.13 && left.headOffset.x > 0.14);
+  assert.ok(right.shoulderBalance < -0.13 && right.headOffset.x < -0.14);
 });
 
 test('duck ignores head nods, expires at 800ms and requires 400ms neutral before rearming', () => {
@@ -260,14 +356,14 @@ test('full landmark sequence completes calibration and all four guided actions',
     [`${hand}Wrist`]: point(hand === 'left' ? 0.92 : 0.08, 0.43),
   });
   assert.equal(c.update(sample(3200, punch('left'))).punch, 'left');
-  for (let t = 3250; t <= 3700; t += 50) c.update(sample(t));
-  assert.equal(c.update(sample(3800, punch('right'))).punch, 'right');
+  for (let t = 3250; t <= 3800; t += 50) c.update(sample(t));
+  assert.equal(c.update(sample(3900, punch('right'))).punch, 'right');
   const guard = { leftWrist: point(0.57, 0.3), rightWrist: point(0.43, 0.3) };
-  for (let t = 3850; t <= 4500; t += 50) c.update(sample(t, guard));
+  for (let t = 3950; t <= 4750; t += 50) c.update(sample(t, guard));
   assert.equal(c.diagnostics().calibration.checks.guard, true);
-  for (let t = 4550; t <= 4950; t += 50) c.update(sample(t, {}, (p) => ({ ...p, y: p.y + 0.1 })));
+  for (let t = 4800; t <= 5200; t += 50) c.update(sample(t, {}, (p) => ({ ...p, y: p.y + 0.1 })));
   assert.equal(c.diagnostics().calibration.phase, 'ready');
-  const lost = c.update(sample(5000, { leftWrist: point(0.66, 0.52, 0, 0) }));
+  const lost = c.update(sample(5250, { leftWrist: point(0.66, 0.52, 0, 0) }));
   assert.equal(lost.guard, false);
   assert.equal(lost.duck, false);
   assert.equal(lost.punch, undefined);

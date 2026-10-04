@@ -10,13 +10,14 @@ import {
   reliableWorldArm,
 } from './geometry';
 
-export const CALIBRATION_MS = 3000;
+export const CALIBRATION_MS = 1000;
 export const ACTION_CHECKS = ['leftPunch', 'rightPunch', 'guard', 'duck'] as const;
 export type ActionCheck = (typeof ACTION_CHECKS)[number];
 export interface CalibrationBaseline {
   shoulderWidth: number;
   head: Landmark;
   shoulderCenter: Landmark;
+  shoulderTilt?: number;
   torso: Landmark;
   restWrists: Record<'left' | 'right', Landmark>;
   segmentRatios: NonNullable<PoseSample['segmentRatios']>;
@@ -166,6 +167,13 @@ export class Calibration {
     this.baseline = {
       shoulderWidth,
       shoulderCenter,
+      shoulderTilt: median(
+        this.samples.map((s) => {
+          const shoulders = s.aspectLandmarks;
+          const width = distance2(shoulders.leftShoulder, shoulders.rightShoulder);
+          return (shoulders.leftShoulder.y - shoulders.rightShoulder.y) / Math.max(0.08, width);
+        }),
+      ),
       head,
       torso,
       restWrists,
@@ -197,7 +205,7 @@ export class Calibration {
       nextCheck: next,
       message: next
         ? messages[next]
-        : 'All four actions recognized. Confirm Ready to start local practice.',
+        : 'All four actions recognized. Entering the ring automatically.',
     };
   }
 }

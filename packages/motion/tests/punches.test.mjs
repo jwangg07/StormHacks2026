@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadMotion } from './loadMotion.mjs';
 
-const { ActionDetector } = await loadMotion('detectors');
+const { ActionDetector, MIN_PUNCH_SPEED, PUNCH_COOLDOWN_MS } = await loadMotion('detectors');
 const { MotionController } = await loadMotion('controller');
 const { createPoseSample, POSE_LANDMARKS } = await loadMotion('pose');
 const point = (x, y, z = 0) => ({ x, y, z, visibility: 1 });
-function features(timestamp, left = {}) {
+function features(timestamp, left = {}, right = {}) {
   const arm = {
     wrist: point(0.65, 0.3),
     shoulder: point(0.5, 0),
@@ -30,7 +30,7 @@ function features(timestamp, left = {}) {
     neutral: false,
     arms: {
       left: { ...arm, ...left },
-      right: { ...arm, wrist: point(-0.65, 0.3), shoulder: point(-0.5, 0) },
+      right: { ...arm, wrist: point(-0.65, 0.3), shoulder: point(-0.5, 0), ...right },
     },
   };
 }
@@ -41,11 +41,339 @@ const punch = {
   restDistance: 0.5,
   reach: 0.65,
 };
+function confirmPunch(detector, input) {
+  const frame = detector.update(input);
+  return frame.punch ? frame : detector.update({ ...input, timestamp: input.timestamp + 50 });
+}
+
+test('fast straight punches that recoil before confirmation still register once for either hand', () => {
+  for (const hand of ['left', 'right']) {
+    const d = new ActionDetector();
+    const attack = { ...punch, wrist: point(hand === 'left' ? 1.15 : -1.15, 0.3) };
+    const actions = [];
+    for (const t of [0, 33, 66, 99, 132, 165, 198]) {
+      const frame = d.update(
+        features(
+          t,
+          hand === 'left' && t === 33 ? attack : {},
+          hand === 'right' && t === 33 ? attack : {},
+        ),
+      );
+      if (frame.punch) actions.push({ hand: frame.punch, move: frame.move });
+    }
+    assert.deepEqual(actions, [{ hand, move: hand === 'left' ? 'jab' : 'cross' }]);
+  }
+});
+
+test('camera-directed straights register symmetrically despite shrinking image reach', () => {
+  for (const hand of ['left', 'right']) {
+    const sign = hand === 'left' ? 1 : -1;
+    const d = new ActionDetector();
+    const start = {
+      elbow: point(sign * 0.9, 0.6),
+      wrist: point(sign * 1.05, 0.3),
+      reach: 0.63,
+      projectedForearm: 0.39,
+    };
+    d.update(features(0, hand === 'left' ? start : {}, hand === 'right' ? start : {}));
+    const attack = {
+      ...start,
+      elbow: point(sign * 0.78, 0.4),
+      wrist: point(sign * 0.99, 0.3),
+      reach: 0.45,
+      projectedForearm: 0.12,
+      restDistance: 0.06,
+    };
+    const frame = confirmPunch(
+      d,
+      features(67, hand === 'left' ? attack : {}, hand === 'right' ? attack : {}),
+    );
+    assert.equal(frame.punch, hand);
+    assert.equal(frame.move, hand === 'left' ? 'jab' : 'cross');
+  }
+});
 
 test('rising extension punches need not lock the elbow to 150 degrees', () => {
   const d = new ActionDetector();
   d.update(features(0));
-  assert.equal(d.update(features(200, punch)).punch, 'left');
+  const frame = d.update(features(150, punch));
+  assert.equal(frame.punch, 'left');
+  assert.equal(frame.move, 'jab');
+});
+
+test('fast wrist strikes register for both hands despite flat elbow and depth estimates', () => {
+  for (const hand of ['left', 'right']) {
+    const d = new ActionDetector();
+    const sign = hand === 'left' ? 1 : -1;
+    const rest = { elbowAngle: 170, imageElbowAngle: 170 };
+    d.update(features(0, rest, rest));
+    const attack = { ...rest, wrist: point(sign * 0.95, 0.3), reach: 0.54, restDistance: 0.3 };
+    const frame = d.update(
+      features(100, hand === 'left' ? attack : rest, hand === 'right' ? attack : rest),
+    );
+    assert.equal(frame.punch, hand);
+    assert.equal(frame.move, hand === 'left' ? 'jab' : 'cross');
+  }
+});
+
+test('the faster hand wins even when the other hand has much larger elbow extension', () => {
+  for (const hand of ['left', 'right']) {
+    const d = new ActionDetector();
+    d.update(features(0));
+    const sign = hand === 'left' ? 1 : -1;
+    const fast = { wrist: point(sign * 1.05, 0.3), reach: 0.63, restDistance: 0.4 };
+    const noisy = {
+      wrist: point(-sign * 0.88, 0.3),
+      reach: 0.48,
+      restDistance: 0.23,
+      elbowAngle: 175,
+      imageElbowAngle: 175,
+    };
+    const frame = d.update(
+      features(100, hand === 'left' ? fast : noisy, hand === 'right' ? fast : noisy),
+    );
+    assert.equal(frame.punch, hand);
+    assert.equal(frame.move, hand === 'left' ? 'jab' : 'cross');
+  }
+});
+
+test('the opposite hand can strike during the first hand recovery without replaying recoil', () => {
+  const d = new ActionDetector();
+  d.update(features(0));
+  assert.equal(confirmPunch(d, features(67, punch)).punch, 'left');
+  d.update(features(117, punch));
+  const right = { ...punch, wrist: point(-1.15, 0.3) };
+  const combo = d.update(features(267, punch, right));
+  assert.equal(combo.punch, 'right');
+  assert.equal(combo.move, 'cross');
+  assert.equal(d.update(features(317)).punch, undefined, 'return stroke is not a new attack');
+});
+
+test('forward camera punches can use a fast elbow and shrinking forearm when world depth is missing', () => {
+  const d = new ActionDetector();
+  d.update(features(0, { elbow: point(0.9, 0.6), projectedForearm: 0.39 }));
+  const frame = confirmPunch(
+    d,
+    features(67, {
+      elbow: point(0.75, 0.4),
+      wrist: point(0.7, 0.3),
+      projectedForearm: 0.12,
+      elbowAngle: 95,
+      imageElbowAngle: 95,
+      reach: 0.3,
+      restDistance: 0.04,
+    }),
+  );
+  assert.equal(frame.punch, 'left');
+  assert.equal(frame.move, 'jab');
+});
+
+test('deliberate compact jabs register once after brief classification even if the hand has stopped', () => {
+  const d = new ActionDetector();
+  d.update(features(0));
+  const attack = {
+    wrist: point(0.89, 0.3),
+    elbowAngle: 111,
+    imageElbowAngle: 111,
+    reach: 0.48,
+    restDistance: 0.24,
+  };
+  assert.equal(d.update(features(33, attack)).punch, undefined);
+  const frame = d.update(features(66, attack));
+  assert.equal(frame.punch, 'left');
+  assert.equal(frame.move, 'jab');
+  assert.equal(d.update(features(99, attack)).punch, undefined);
+});
+
+test('credible image jabs tolerate modest world elbow underestimation', () => {
+  const d = new ActionDetector();
+  d.update(features(0, { depthReliable: true }));
+  assert.equal(
+    confirmPunch(
+      d,
+      features(67, {
+        wrist: point(0.89, 0.3),
+        depthReliable: true,
+        elbowAngle: 103,
+        imageElbowAngle: 116,
+        reach: 0.45,
+        restDistance: 0.24,
+      }),
+    ).punch,
+    'left',
+  );
+});
+
+test('slow extensions below the velocity boundary never become jabs', () => {
+  for (const sensitivity of [0.7, 1, 1.3]) {
+    const d = new ActionDetector(sensitivity);
+    for (let t = 0; t <= 600; t += 50) {
+      const fraction = t / 600;
+      const frame = d.update(
+        features(t, {
+          wrist: point(0.65 + fraction * 0.6, 0.3),
+          elbowAngle: 95 + fraction * 80,
+          imageElbowAngle: 95 + fraction * 80,
+          reach: 0.3 + fraction * 0.6,
+          restDistance: fraction * 0.6,
+        }),
+      );
+      assert.equal(frame.punch, undefined, 'large but slow extension is not a strike');
+    }
+  }
+  assert.ok(MIN_PUNCH_SPEED >= 2);
+});
+
+test('lowering a held block is not a punch even when fast and the elbows open', () => {
+  for (const duration of [67, 150, 300, 600]) {
+    const d = new ActionDetector();
+    const guard = (sign) => ({ wrist: point(sign * 0.35, -0.8), reach: 0.82, restDistance: 1.1 });
+    for (let t = 0; t <= 200; t += 50) d.update(features(t, guard(1), guard(-1)));
+    const steps = Math.ceil(duration / 33);
+    for (let i = 1; i <= steps; i++) {
+      const fraction = i / steps;
+      const lower = (sign) => ({
+        wrist: point(sign * (0.35 + fraction * 0.35), -0.8 + fraction * 2),
+        elbowAngle: 95 + fraction * 75,
+        imageElbowAngle: 95 + fraction * 75,
+        reach: Math.hypot(-0.15 + fraction * 0.35, -0.8 + fraction * 2),
+        restDistance: Math.hypot(-0.3 + fraction * 0.35, -1.1 + fraction * 2),
+      });
+      assert.equal(
+        d.update(features(200 + duration * fraction, lower(1), lower(-1))).punch,
+        undefined,
+      );
+    }
+  }
+});
+
+test('a jab can rearm and register again after the shorter cooldown', () => {
+  const d = new ActionDetector();
+  d.update(features(0));
+  assert.equal(d.update(features(100, punch)).punch, 'left');
+  for (let t = 117; t < 100 + PUNCH_COOLDOWN_MS; t += 33) d.update(features(t));
+  const frame = confirmPunch(d, features(100 + PUNCH_COOLDOWN_MS, punch));
+  assert.equal(frame.punch, 'left');
+  assert.equal(frame.move, 'jab');
+});
+
+test('repeated same-hand attacks at five per second do not need a stationary reset', () => {
+  for (const hand of ['left', 'right']) {
+    const d = new ActionDetector();
+    const sign = hand === 'left' ? 1 : -1;
+    d.update(features(0));
+    const actions = [];
+    for (let t = 33; t <= 1188; t += 33) {
+      const phase = t % 198;
+      const attacking = phase === 33 || phase === 66;
+      const arm = attacking
+        ? { ...punch, wrist: point(sign * 1.15, 0.3), wristSpeed: 5 }
+        : { wrist: point(sign * 0.8, 0.3), reach: 0.42, restDistance: 0.15, wristSpeed: 5 };
+      const frame = d.update(features(t, hand === 'left' ? arm : {}, hand === 'right' ? arm : {}));
+      if (frame.punch) actions.push({ hand: frame.punch, move: frame.move });
+    }
+    assert.deepEqual(
+      actions,
+      Array.from({ length: 6 }, () => ({ hand, move: hand === 'left' ? 'jab' : 'cross' })),
+    );
+  }
+});
+
+test('alternating attacks ninety-nine milliseconds apart are captured during the other hand recovery', () => {
+  const d = new ActionDetector();
+  d.update(features(0));
+  const actions = [];
+  for (let t = 33; t <= 1023; t += 33) {
+    const index = Math.floor((t - 33) / 99),
+      phase = (t - 33) % 99;
+    const hand = index % 2 ? 'right' : 'left';
+    const attack = { ...punch, wrist: point(hand === 'left' ? 1.15 : -1.15, 0.3), wristSpeed: 5 };
+    const rest = { wristSpeed: 5 };
+    const frame = d.update(
+      features(
+        t,
+        phase < 66 && hand === 'left' ? attack : rest,
+        phase < 66 && hand === 'right' ? attack : rest,
+      ),
+    );
+    if (frame.punch) actions.push(frame.punch);
+  }
+  assert.deepEqual(
+    actions,
+    Array.from({ length: 10 }, (_, i) => (i % 2 ? 'right' : 'left')),
+  );
+});
+
+test('old fast movement cannot register after the wrist has stopped', () => {
+  const d = new ActionDetector();
+  d.update(features(0));
+  // Travel first, then a delayed/noisy elbow estimate changes on a stationary wrist.
+  const reached = {
+    wrist: point(0.8, 0.6),
+    reach: 0.67,
+    restDistance: 0.34,
+    elbowAngle: 95,
+    imageElbowAngle: 95,
+  };
+  assert.equal(d.update(features(67, reached)).punch, undefined);
+  assert.equal(
+    d.update(features(100, { ...reached, elbowAngle: 135, imageElbowAngle: 135 })).punch,
+    undefined,
+  );
+});
+
+test('short forward jabs register with a fast depth push and independent foreshortening', () => {
+  const d = new ActionDetector();
+  d.update(features(0, { depthReliable: true, worldReach: 0.6, wrist: point(0.65, 0.3, -0.2) }));
+  const frame = confirmPunch(
+    d,
+    features(67, {
+      depthReliable: true,
+      worldReach: 0.7,
+      wrist: point(0.65, 0.3, -0.41),
+      elbowAngle: 111,
+      imageElbowAngle: 80,
+      projectedForearm: 0.53,
+      reach: 0.3,
+      restDistance: 0,
+    }),
+  );
+  assert.equal(frame.punch, 'left');
+  assert.equal(frame.move, 'jab');
+});
+test('each anatomical hand wins over opposite shoulder sway and noisy elbow extension', () => {
+  for (const hand of ['left', 'right']) {
+    const d = new ActionDetector();
+    d.update(features(0));
+    const sign = hand === 'left' ? 1 : -1;
+    const active = { ...punch, wrist: point(sign * 1.15, 0.3) };
+    const opposite = {
+      wrist: point(-sign * 0.15, 0.3),
+      shoulder: point(-sign * 0.1, 0),
+      elbowAngle: 175,
+      imageElbowAngle: 175,
+      reach: 0.7,
+      restDistance: 0.7,
+    };
+    const frame = d.update(
+      features(150, hand === 'left' ? active : opposite, hand === 'right' ? active : opposite),
+    );
+    assert.equal(frame.punch, hand);
+    assert.equal(frame.move, hand === 'left' ? 'jab' : 'cross');
+  }
+});
+test('moving both shoulders and wrists together cannot become a punch', () => {
+  const d = new ActionDetector();
+  d.update(features(0));
+  const shifted = (sign) => ({
+    shoulder: point(sign * 0.5, 0.55),
+    wrist: point(sign * 0.65, 0.85),
+    elbowAngle: 145,
+    imageElbowAngle: 145,
+    reach: 0.7,
+    restDistance: 0.6,
+  });
+  assert.equal(d.update(features(150, shifted(1), shifted(-1))).punch, undefined);
 });
 test('returning to face-level guard rearms after a punch', () => {
   const d = new ActionDetector();
@@ -54,11 +382,25 @@ test('returning to face-level guard rearms after a punch', () => {
   for (let t = 150; t <= 600; t += 50)
     d.update(features(t, { wrist: point(0.35, -0.8), restDistance: 1.05 }));
   assert.equal(
-    d.update(
-      features(700, { ...punch, wrist: point(1.15, -0.5), elbowAngle: 175, imageElbowAngle: 175 }),
+    confirmPunch(
+      d,
+      features(800, { ...punch, wrist: point(1.15, -0.5), elbowAngle: 175, imageElbowAngle: 175 }),
     ).punch,
     'left',
   );
+});
+test('a recoil and brief pass through guard do not register a second punch', () => {
+  const d = new ActionDetector();
+  const extended = { ...punch, elbowAngle: 175, imageElbowAngle: 175, restDistance: 1 };
+  d.update(features(0));
+  assert.equal(d.update(features(100, extended)).punch, 'left');
+  for (let t = 150; t <= 600; t += 50)
+    assert.equal(d.update(features(t, extended)).punch, undefined);
+  d.update(features(650));
+  d.update(features(700));
+  assert.equal(d.update(features(750, extended)).punch, undefined);
+  for (let t = 800; t <= 1100; t += 50) d.update(features(t));
+  assert.equal(d.update(features(1250, extended)).punch, 'left');
 });
 test('image geometry still detects punches when estimated depth drops out mid-extension', () => {
   const d = new ActionDetector();
@@ -81,8 +423,64 @@ test('forward punches can shorten projected reach when extension and image fores
     restDistance: 0.1,
     reach: 0.2,
   };
-  assert.equal(d.update(features(200, end)).punch, 'left');
+  assert.equal(d.update(features(150, end)).punch, 'left');
   for (let t = 250; t <= 900; t += 50) assert.equal(d.update(features(t, end)).punch, undefined);
+});
+
+test('moderate-speed straight extensions and fast short fidgets are not jabs', () => {
+  for (const hand of ['left', 'right'])
+    for (const sensitivity of [0.7, 1, 1.3]) {
+      for (const [travel, elapsed] of [
+        [0.3, 120],
+        [0.18, 33],
+        [0.2, 67],
+      ]) {
+        const sign = hand === 'left' ? 1 : -1;
+        const d = new ActionDetector(sensitivity);
+        d.update(features(0));
+        const arm = {
+          wrist: point(sign * (0.65 + travel), 0.3),
+          reach: 0.3 + travel * 0.7,
+          restDistance: travel,
+          imageElbowAngle: 175,
+          elbowAngle: 175,
+        };
+        for (const t of [elapsed, elapsed + 33, elapsed + 66, elapsed + 99]) {
+          assert.equal(
+            d.update(features(t, hand === 'left' ? arm : {}, hand === 'right' ? arm : {})).punch,
+            undefined,
+            `${hand}, travel ${travel}, elapsed ${elapsed}, sensitivity ${sensitivity}`,
+          );
+        }
+      }
+    }
+});
+
+test('moderate depth and elbow extension cannot bypass the straight speed requirement', () => {
+  for (const hand of ['left', 'right'])
+    for (const depth of [true, false]) {
+      const sign = hand === 'left' ? 1 : -1;
+      const d = new ActionDetector();
+      const start = {
+        depthReliable: depth,
+        wrist: point(sign * 0.65, 0.3, -0.2),
+        elbow: point(sign * 0.9, 0.6),
+        projectedForearm: 0.39,
+      };
+      d.update(features(0, hand === 'left' ? start : {}, hand === 'right' ? start : {}));
+      const end = {
+        ...start,
+        wrist: point(sign * 0.7, 0.3, depth ? -0.45 : -0.2),
+        elbow: point(sign * 0.75, 0.4),
+        projectedForearm: 0.12,
+        restDistance: 0.05,
+      };
+      for (const t of [100, 133, 166, 199])
+        assert.equal(
+          d.update(features(t, hand === 'left' ? end : {}, hand === 'right' ? end : {})).punch,
+          undefined,
+        );
+    }
 });
 test('a depth spike with unchanged image geometry cannot create a punch', () => {
   const d = new ActionDetector();
@@ -165,8 +563,42 @@ test('front-camera landmark trajectories detect each hand at 15Hz through normal
     const actions = [];
     for (let i = 1; i <= 7; i++) {
       const frame = c.update(pose(3100 + i * 67, Math.min(1, i / 3), hand));
-      if (frame.punch) actions.push(frame.punch);
+      if (frame.punch) actions.push({ hand: frame.punch, move: frame.move });
     }
-    assert.deepEqual(actions, [hand]);
+    assert.deepEqual(actions, [{ hand, move: hand === 'left' ? 'jab' : 'cross' }]);
   }
+});
+
+test('a single-frame camera jab and immediate recoil survive normalization for both hands', () => {
+  for (const hand of ['left', 'right'])
+    for (const includeWorld of [false, true]) {
+      const c = new MotionController();
+      c.startCalibration();
+      for (let t = 0; t <= 3100; t += 50) c.update(pose(t, 0, hand, includeWorld));
+      const actions = [];
+      for (let i = 1; i <= 7; i++) {
+        const frame = c.update(pose(3100 + i * 67, i === 1 ? 1 : 0, hand, includeWorld));
+        if (frame.punch) actions.push({ hand: frame.punch, move: frame.move });
+      }
+      assert.deepEqual(
+        actions,
+        [{ hand, move: hand === 'left' ? 'jab' : 'cross' }],
+        `${hand}, world ${includeWorld}`,
+      );
+    }
+});
+
+test('camera-directed repeated attacks survive normalization at fifteen samples per second', () => {
+  for (const hand of ['left', 'right'])
+    for (const includeWorld of [false, true]) {
+      const c = new MotionController();
+      c.startCalibration();
+      for (let t = 0; t <= 3100; t += 50) c.update(pose(t, 0, hand, includeWorld));
+      const actions = [];
+      for (let i = 1; i <= 18; i++) {
+        const frame = c.update(pose(3100 + i * 67, i % 3 === 1 ? 1 : 0, hand, includeWorld));
+        if (frame.punch) actions.push(frame.punch);
+      }
+      assert.deepEqual(actions, Array(6).fill(hand), `${hand}, world ${includeWorld}`);
+    }
 });
