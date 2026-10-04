@@ -18,7 +18,7 @@ function Fighter({ x, glove, skin }: { x: number; glove: string; skin: Texture |
   const boxer = useRef<Group>(null);
 
   useFrame(({ clock }) => {
-    if (boxer.current) boxer.current.position.y = MAT_Y + Math.sin(clock.elapsedTime * 2.1 + x) * 0.035;
+    if (boxer.current) boxer.current.position.y = MAT_Y + (1 + Math.sin(clock.elapsedTime * 2.1 + x)) * 0.0175;
   });
 
   // Player A (left, x < 0) faces +x; player B faces -x.

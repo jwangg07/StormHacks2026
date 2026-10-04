@@ -25,7 +25,7 @@ export function bakeSkin(map: TexelMap, frames: readonly CapturedFrame[], direct
       const part = parts[partIndex];
       if (!part) continue;
       projectTexel(part, scalePx, map.t[i], map.du[i], map.dw[i], hit);
-      if (hit.weight <= 0 || !onPerson(frame, hit.x, hit.y)) continue;
+      if (!(hit.weight > 0) || !onPerson(frame, hit.x, hit.y)) continue;
       addSample(frame, hit.x, hit.y, hit.weight, sum, i * 3);
       weight[i] += hit.weight;
     }

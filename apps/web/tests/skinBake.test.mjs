@@ -43,9 +43,13 @@ test('pixels outside the person mask are never sampled', () => {
 
 test('turn direction mirrors which side faces the camera at 90°', () => {
   const side = (direction) => skin.bakeSkin(map, [splitFrame({ yawDeg: 90 })], direction);
-  // +90°: chest front swings to image right (blue), -90°: to image left (red). Front faces are edge-on,
-  // so only the axis-weighted texels sample; check the overall tint of the quad's centre column.
-  assert.notDeepEqual(texel(side(1), SIZE / 2, SIZE / 2), texel(side(-1), SIZE / 2, SIZE / 2));
+  // +90° (direction 1): the chest swings to image right, so the fighter's right side (dw < 0, small x)
+  // faces the camera and samples image right (blue). -90° (direction -1): the fighter's left side
+  // (dw > 0, large x) faces the camera and samples image left (red).
+  const right = texel(side(1), 2, SIZE / 2);
+  const left = texel(side(-1), SIZE - 3, SIZE / 2);
+  assert.ok(near(right, BLUE), `+90° fighter right: ${right}`);
+  assert.ok(near(left, RED), `-90° fighter left: ${left}`);
 });
 
 test('unseen texels take neighbour colours and the gutter is filled', () => {
