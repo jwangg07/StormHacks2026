@@ -120,7 +120,7 @@ export function AvatarPage() {
               ? state.armed
                 ? 'FIND YOUR FRAME'
                 : 'READY TO SCAN'
-              : 'FIGHTER IDENTITY';
+              : 'SCAN IDENTITY';
 
   return (
     <main className="avatar-room">
@@ -193,7 +193,7 @@ export function AvatarPage() {
           </>
         ) : null}
         <span className="avatar-stage-index">
-          AVATAR EDITOR <i /> UNIT 01
+          AVATAR EDITOR
         </span>
         <div className="avatar-stage-corners" aria-hidden="true">
           <span />
