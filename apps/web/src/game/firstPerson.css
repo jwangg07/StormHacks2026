@@ -122,6 +122,27 @@
   text-shadow: 0 1px 3px #000;
   text-transform: uppercase;
 }
+.fp-round-readout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid rgb(183 158 115 / 24%);
+  background: rgb(19 22 20 / 68%);
+  color: #d7a665;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px #000;
+}
+.fp-round-readout i {
+  width: 3px;
+  height: 3px;
+  background: #8f9582;
+  transform: rotate(45deg);
+}
 .fp-setup-toggle {
   justify-self: end;
   min-width: 152px;
