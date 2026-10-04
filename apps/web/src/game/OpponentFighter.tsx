@@ -17,6 +17,27 @@ const MAT_Y = 0.17;
 const OPPONENT_Z = -2.75;
 const SMOOTHING_SECONDS = 0.02;
 const MAX_PREDICTION_MS = 50;
+const MIN_DIRECTION_LENGTH_SQ = 1e-6;
+
+function safePredictedDirection(
+  output: Vector3,
+  current: { x: number; y: number; z: number },
+  previous: { x: number; y: number; z: number } | undefined,
+  prediction: number,
+  fallback: Vector3,
+) {
+  output.set(
+    current.x + (current.x - (previous?.x ?? current.x)) * prediction,
+    current.y + (current.y - (previous?.y ?? current.y)) * prediction,
+    current.z + (current.z - (previous?.z ?? current.z)) * prediction,
+  );
+  return Number.isFinite(output.x) &&
+    Number.isFinite(output.y) &&
+    Number.isFinite(output.z) &&
+    output.lengthSq() >= MIN_DIRECTION_LENGTH_SQ
+    ? output.normalize()
+    : output.copy(fallback);
+}
 
 export function OpponentFighter({
   input,
@@ -106,27 +127,24 @@ export function OpponentFighter({
       const arm = rig.arms[side];
       const tracked = current?.avatarPose?.[side];
       const old = previous?.avatarPose?.[side];
-      const goal = tracked ?? GUARD[side];
-      smooth[side].upper
-        .lerp(
-          target.set(
-            predicted(goal.upper.x, old?.upper.x),
-            predicted(goal.upper.y, old?.upper.y),
-            predicted(goal.upper.z, old?.upper.z),
-          ),
+      // Hold the last valid arm through a brief landmark dropout. Never feed a zero or
+      // non-finite direction into the skeleton, which can collapse skinned arm geometry.
+      if (tracked) {
+        smooth[side].upper.lerp(
+          safePredictedDirection(target, tracked.upper, old?.upper, prediction, smooth[side].upper),
           alpha,
-        )
-        .normalize();
-      smooth[side].fore
-        .lerp(
-          target.set(
-            predicted(goal.fore.x, old?.fore.x),
-            predicted(goal.fore.y, old?.fore.y),
-            predicted(goal.fore.z, old?.fore.z),
-          ),
+        );
+        smooth[side].fore.lerp(
+          safePredictedDirection(target, tracked.fore, old?.fore, prediction, smooth[side].fore),
           alpha,
-        )
-        .normalize();
+        );
+      }
+      if (smooth[side].upper.lengthSq() < MIN_DIRECTION_LENGTH_SQ)
+        smooth[side].upper.set(GUARD[side].upper.x, GUARD[side].upper.y, GUARD[side].upper.z);
+      if (smooth[side].fore.lengthSq() < MIN_DIRECTION_LENGTH_SQ)
+        smooth[side].fore.set(GUARD[side].fore.x, GUARD[side].fore.y, GUARD[side].fore.z);
+      smooth[side].upper.normalize();
+      smooth[side].fore.normalize();
       aim(arm.upper, arm.fore, target.copy(smooth[side].upper).applyQuaternion(rootRotation));
       aim(arm.fore, arm.hand, target.copy(smooth[side].fore).applyQuaternion(rootRotation));
     }

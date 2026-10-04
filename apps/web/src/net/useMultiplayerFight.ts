@@ -114,12 +114,19 @@ export function useMultiplayerFight(motion: MotionControls) {
       subscribeControls((frame) => {
         const socket = socketRef.current;
         const currentMatchId = matchId.current;
-        if (!socket || !currentMatchId || !active.current) return;
+        if (!socket || !currentMatchId) return;
         if (!frame.punch && frame.timestamp - lastInputAt.current < 1_000 / 30) return;
         lastInputAt.current = frame.timestamp;
         sequence.current += 1;
         const input = inputFromMotion(currentMatchId, sequence.current, frame);
+        // Pose animation is presentation data, not combat state. Keep it flowing throughout
+        // calibration/countdown and after the round so match lifecycle events cannot freeze it.
+        // An RTC data channel can remain "open" while its network path is black-holed.
+        // Hedge every disposable pose over Socket.IO; sequence de-duplication means the
+        // receiver uses whichever copy arrives first without rendering twice.
         sendPeerPose(input);
+        socket.volatile.emit('game.pose', input);
+        if (!active.current) return;
         if (frame.punch) socket.emit('game.input', input);
         else socket.volatile.emit('game.input', input);
       }),

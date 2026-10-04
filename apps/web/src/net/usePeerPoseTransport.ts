@@ -48,6 +48,9 @@ export function usePeerPoseTransport(
       channel.onclose = () => {
         if (channelRef.current === channel) channelRef.current = null;
       };
+      channel.onerror = () => {
+        if (channelRef.current === channel) channelRef.current = null;
+      };
     };
 
     const sendSignal = (signal: Omit<RtcSignal, 'matchId'>) =>
@@ -112,7 +115,14 @@ export function usePeerPoseTransport(
   return useCallback((input: GameInput) => {
     const channel = channelRef.current;
     if (channel?.readyState !== 'open') return false;
-    channel.send(JSON.stringify(input));
-    return true;
+    // Do not let a congested peer channel accumulate old poses. Fall back to the socket relay.
+    if (channel.bufferedAmount > 64 * 1_024) return false;
+    try {
+      channel.send(JSON.stringify(input));
+      return true;
+    } catch {
+      channelRef.current = null;
+      return false;
+    }
   }, []);
 }

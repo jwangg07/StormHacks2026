@@ -203,6 +203,24 @@ describe('minimal two-player flow', () => {
     });
     coordinator.close();
   });
+
+  it('relays visual poses before the authoritative fight becomes active', () => {
+    const a = new FakeSocket('pose-a');
+    const b = new FakeSocket('pose-b');
+    const { coordinator } = coordinatorWith(a, b);
+    a.clientEmit('matchmaking.join', {});
+    b.clientEmit('matchmaking.join', {});
+    const match = a.messages('matchmaking.matched')[0] as { matchId: string };
+
+    a.clientEmit('game.pose', input(match.matchId, 1));
+
+    expect(a.messages('game.opponentInput')).toHaveLength(0);
+    expect(b.messages('game.opponentInput')).toHaveLength(1);
+    expect(
+      (b.messages('game.opponentInput')[0] as { input: { sequence: number } }).input.sequence,
+    ).toBe(1);
+    coordinator.close();
+  });
 });
 
 function coordinatorWith(...sockets: FakeSocket[]) {

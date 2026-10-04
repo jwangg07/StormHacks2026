@@ -51,6 +51,7 @@ export class MultiplayerCoordinator {
   private readonly queue: Player[] = [];
   private readonly rooms = new Map<string, Room>();
   private readonly inputWindows = new Map<string, number[]>();
+  private readonly poseWindows = new Map<string, number[]>();
   private readonly inviteCreateWindows = new Map<string, number[]>();
   private readonly inviteAcceptWindows = new Map<string, number[]>();
   private readonly invites = new InviteService();
@@ -209,6 +210,22 @@ export class MultiplayerCoordinator {
       if (!parsed.success || !room || !player.seat || parsed.data.matchId !== room.match.state.id)
         return;
       room.players[otherSeat(player.seat)].socket.emit('rtc.signal', parsed.data);
+    });
+
+    // Visual pose traffic is deliberately independent from the authoritative match phase.
+    // Calibration, countdown, and transient state changes must not freeze the remote avatar.
+    socket.on('game.pose', (payload: unknown) => {
+      if (Buffer.byteLength(JSON.stringify(payload)) > 4_096) return;
+      if (!this.withinWindow(this.poseWindows, socket.id, 45, 1_000)) return;
+      const parsed = gameInputSchema.safeParse(payload);
+      const room = this.roomFor(player);
+      if (!parsed.success || !room || !player.seat || parsed.data.matchId !== room.match.state.id)
+        return;
+      room.players[otherSeat(player.seat)].socket.volatile.emit('game.opponentInput', {
+        seat: player.seat,
+        input: parsed.data,
+        serverTimestamp: Date.now(),
+      });
     });
 
     socket.on('game.input', (payload: unknown, ack?: Ack) => {
@@ -418,6 +435,7 @@ export class MultiplayerCoordinator {
     this.playersBySocketId.delete(player.socket.id);
     this.playersBySessionId.delete(player.sessionId);
     this.inputWindows.delete(player.socket.id);
+    this.poseWindows.delete(player.socket.id);
     this.inviteCreateWindows.delete(player.sessionId);
     this.inviteAcceptWindows.delete(player.sessionId);
     this.invites.removeForCreator(player.sessionId, 'CREATOR_DISCONNECTED');

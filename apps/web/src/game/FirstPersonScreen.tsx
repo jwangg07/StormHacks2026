@@ -131,7 +131,13 @@ function HeavyBag({ impact }: { impact: PunchCue | null }) {
   );
 }
 
-function SparringRoom({ impact }: { impact: PunchCue | null }) {
+function SparringRoom({
+  impact,
+  showPracticeBag,
+}: {
+  impact: PunchCue | null;
+  showPracticeBag: boolean;
+}) {
   const sides = [-1, 1];
   return (
     <group>
@@ -223,7 +229,7 @@ function SparringRoom({ impact }: { impact: PunchCue | null }) {
           ))}
         </group>
       ))}
-      <HeavyBag impact={impact} />
+      {showPracticeBag ? <HeavyBag impact={impact} /> : null}
       {[-4.2, 4.2].map((x) => (
         <group key={`lamp-${x}`} position={[x, 4.4, -4.5]}>
           <mesh position={[0, 0.15, 0]}>
@@ -334,7 +340,7 @@ export function FirstPersonScreen() {
               distance={18}
               color="#e5bc7e"
             />
-            <SparringRoom impact={impact} />
+            <SparringRoom impact={impact} showPracticeBag={!fight.assignment} />
             <Suspense fallback={null}>
               <OpponentFighter input={fight.opponentInput?.input ?? null} skin={opponentSkin} />
               <FirstPersonArms punch={punch} controlsRef={motion.latestControls} skin={skin} />
