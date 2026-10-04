@@ -89,7 +89,7 @@ export class YawTracker {
       this.votes += observation.turn;
       this.direction = this.votes < 0 ? -1 : 1;
     }
-    let plateau = false;
+    let plateau: boolean;
     if (this.quadrant % 2 === 0) {
       // Q0 and Q2 narrow toward a side view.
       this.extreme = Math.min(this.extreme, s);
