@@ -78,6 +78,21 @@ function features(timestamp, changes = {}) {
 const extended = { wrist: point(1.7, 0), elbowAngle: 175, restDistance: 1, reach: 1.2 };
 const guardArms = { left: { wrist: point(0.35, -0.8) }, right: { wrist: point(-0.35, -0.8) } };
 
+test('calibration automatically starts on a valid pose once and preserves completed baseline across tracking loss', () => {
+  const c = new MotionController();
+  c.update(sample(0, { leftWrist: point(0.66, 0.52, 0, 0.1) }));
+  assert.equal(c.diagnostics().calibration.phase, 'idle');
+  c.update(sample(50));
+  assert.equal(c.diagnostics().calibration.phase, 'collecting');
+  for (let t = 100; t <= 3050; t += 50) c.update(sample(t));
+  assert.equal(c.diagnostics().calibration.phase, 'checks');
+  const baseline = c.calibration.baseline;
+  c.update(sample(3100, { leftWrist: point(0.66, 0.52, 0, 0.1) }));
+  c.update(sample(3150));
+  assert.equal(c.calibration.baseline, baseline);
+  assert.equal(c.diagnostics().calibration.nextCheck, 'leftPunch');
+});
+
 test('calibration needs a continuous neutral hold, rejects occlusion and requires all four checks', () => {
   const c = new Calibration();
   c.start();

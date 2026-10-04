@@ -54,6 +54,7 @@ export class MotionController {
       this.invalidate();
       return idleControls(sample.frame.timestamp, sample.tracking);
     }
+    if (this.calibration.snapshot().phase === 'idle') this.startCalibration();
     const baselineBefore = this.calibration.baseline;
     this.calibration.update(sample);
     const baseline = this.calibration.baseline;

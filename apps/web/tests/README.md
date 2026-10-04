@@ -79,3 +79,15 @@ swing counted once despite a one-second hold. Guard entry incremented only the
 guard count, and guard release added no punches. The swing-arc diagnostics were
 visually inspected; no page exceptions occurred. This is synthetic verification,
 not a claim that every real-world swing will be recognized.
+
+Automatic calibration and instruction overlay verification (October 3, 2026):
+
+- A synthetic worker-boundary replay showed “Step into frame” without a valid
+  person, then started the neutral hold automatically when a valid pose appeared.
+- The large gray overlay advanced through left punch, right punch, guard, duck,
+  and calibration complete. Its Confirm Ready button dismissed the overlay and
+  enabled local practice.
+- First-person practice automatically started fresh calibration and displayed
+  the same overlay attached to the document body, outside the scrolling camera
+  panel. No page exceptions occurred. These checks verify UI behavior with
+  synthetic landmarks rather than live camera accuracy.

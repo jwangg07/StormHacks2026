@@ -40,7 +40,8 @@ Manual device checks:
 11. Block the local model/WASM URLs and retry tracking. Confirm a useful error;
     camera playback must remain available. Restore the files and retry.
 
-12. Hold neutral for three seconds. Moving or hiding a required landmark resets
+12. Step into frame: calibration starts automatically on a VALID pose. Follow the
+    large gray instruction overlay and hold neutral for three seconds. Moving or hiding a required landmark resets
     the hold. Perform each prompted action; Ready stays disabled until all four
     are recognized. Confirm Ready and verify local practice counts update once
     per punch and once per defense entry.

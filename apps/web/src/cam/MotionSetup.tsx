@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { ACTION_CHECKS } from '@wb/motion';
+import { CalibrationOverlay } from './CalibrationOverlay';
 import type { useMotionControls } from '../motion/useMotionControls';
 import type { usePoseLandmarker } from '../motion/usePoseLandmarker';
 import './motionSetup.css';
@@ -28,12 +29,13 @@ export function MotionSetup({
     calibration?.phase === 'ready' && usable && (tracking.canResume || !tracking.pauseRequired);
   return (
     <section className="motion-setup" aria-labelledby={`${id}-heading`}>
+      <CalibrationOverlay motion={motion} pose={pose} />
       <h3 id={`${id}-heading`}>Calibrate your movement</h3>
       <p role="status" aria-live="polite">
         {status?.ready
           ? 'Calibration complete. Local practice controls enabled.'
           : (calibration?.message ??
-            'Start with a neutral stance: elbows bent, hands at chest height.')}
+            'Step into frame. Calibration starts automatically when your upper body is visible.')}
       </p>
       {calibration?.phase === 'collecting' ? (
         <label className="motion-progress">
@@ -62,7 +64,7 @@ export function MotionSetup({
       </ol>
       <div className="motion-buttons">
         <button type="button" onClick={motion.startCalibration} disabled={!usable}>
-          {calibration?.phase === 'idle' || !calibration ? 'Start calibration' : 'Recalibrate'}
+          Recalibrate
         </button>
         <button type="button" onClick={motion.confirmReady} disabled={!canReady || status?.ready}>
           {status?.ready ? 'Ready' : 'Confirm Ready'}

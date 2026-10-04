@@ -36,6 +36,12 @@ A safe pose may be held for at most 200 ms; it is never passed off as a new samp
 500 ms latches a pause; a camera stop pauses immediately. Samples stopping for
 200 ms become LOST. One second of continuous valid samples plus explicit
 confirmation is required to clear the gate, including initial startup.
+`MotionController` starts calibration automatically on the first VALID pose of a
+camera session, without a Start calibration click. `CalibrationOverlay` displays
+large instructions on a gray card over either view, with neutral countdown, left
+punch, right punch, guard, duck, and completion prompts. The overlay disappears
+after Confirm Ready; Recalibrate restarts it. Incomplete tracking asks the player
+to step into frame and cannot advance setup.
 `useMotionControls` combines this with calibration: hold a visible neutral stance
 for three uninterrupted seconds, then demonstrate left punch, right punch, guard,
 and duck in order. Only **Confirm Ready** enables local practice controls. Camera
