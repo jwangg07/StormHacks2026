@@ -154,11 +154,15 @@ export function useSkinCapture(videoRef: RefObject<HTMLVideoElement | null>, str
     setState((s) => ({ ...s, armed: false }));
   }, []);
   const cancel = useCallback(() => {
+    armed.current = false;
+    fullBodySince.current = null;
     client.current?.cancel();
     setState((s) => ({ ...s, phase: 'framing', armed: false, slots: EMPTY_SLOTS, yawDeg: null }));
   }, []);
   const finish = useCallback(() => client.current?.finish(), []);
   const retake = useCallback(() => {
+    armed.current = false;
+    fullBodySince.current = null;
     client.current?.cancel();
     setState((s) => ({ ...s, phase: 'framing', armed: false, slots: EMPTY_SLOTS, yawDeg: null, result: null }));
   }, []);
