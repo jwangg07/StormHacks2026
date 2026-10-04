@@ -9,6 +9,7 @@ import { DEFAULT_SKIN_COLOR } from '../avatar/FighterModel';
 import { FIGHTER_URL } from '../avatar/fighterAsset';
 import { addGloves, aim, findRig, GUARD, restPose, SIDES } from '../avatar/rig';
 import type { Side } from '../avatar/rig';
+import { opponentDodgeView } from './boxingAnimation';
 
 const rootRotation = new Quaternion();
 const target = new Vector3();
@@ -113,14 +114,16 @@ export function OpponentFighter({
     };
     const punchIsFresh = Boolean(current?.punchAttempt && performance.now() - receivedAt < 100);
     const alpha = punchIsFresh ? 1 : 1 - Math.exp(-delta / SMOOTHING_SECONDS);
+    const dodge = current?.tracking === 'VALID' && !current.duck ? current.dodge : undefined;
+    const dodgePose = opponentDodgeView(dodge);
     targetPosition.set(
-      head.x * 1.05,
+      dodge ? dodgePose.x : head.x * 1.05,
       MAT_Y + head.y * 0.32 - (current?.duck ? 0.34 : 0),
       OPPONENT_Z + head.z * 0.45,
     );
     root.current.position.lerp(targetPosition, alpha);
-    root.current.rotation.z +=
-      ((current?.duck ? head.x * -0.18 : head.x * -0.1) - root.current.rotation.z) * alpha;
+    const roll = dodge ? dodgePose.roll : head.x * (current?.duck ? -0.18 : -0.1);
+    root.current.rotation.z += (roll - root.current.rotation.z) * alpha;
 
     restPose(rig);
     root.current.getWorldQuaternion(rootRotation);

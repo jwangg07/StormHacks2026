@@ -1,4 +1,4 @@
-import type { MatchSnapshot } from '@wb/core';
+import type { GameInput, MatchSnapshot, OpponentInputPayload } from '@wb/core';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthoritativeMatch, type MatchRuntimeOptions } from '../src/match/state';
 import { MultiplayerCoordinator } from '../src/net/multiplayer';
@@ -87,6 +87,108 @@ function input(matchId: string, sequence: number) {
 }
 
 describe('minimal two-player flow', () => {
+  it('keeps dodge during a punch and clears it on duck or tracking loss', () => {
+    const match = new AuthoritativeMatch(
+      {
+        roomId: 'dodge-room',
+        playerASessionId: 'a',
+        playerBSessionId: 'b',
+        matchType: 'RANDOM',
+      },
+      persistence,
+    );
+    match.start(10_000);
+    const control = { ...input(match.state.id, 1), dodge: 'left' } as GameInput;
+    match.applyInput('A', 'a', control, 10_000);
+    expect(match.requestPunch('A', 'left', 10_000)).not.toBeNull();
+    expect(match.state.players.A.dodge).toBe('left');
+    match.applyInput('A', 'a', { ...control, sequence: 2, duck: true }, 10_050);
+    expect(match.state.players.A.dodge).toBeUndefined();
+    match.applyInput('A', 'a', { ...control, sequence: 3 }, 10_100);
+    expect(match.state.players.A.dodge).toBe('left');
+    match.applyInput('A', 'a', { ...control, sequence: 4, tracking: 'LOST' }, 10_150);
+    expect(match.state.players.A.dodge).toBeUndefined();
+  });
+
+  it.each([
+    ['A', 'left'],
+    ['A', 'right'],
+    ['B', 'left'],
+    ['B', 'right'],
+  ] as const)(
+    'resolves and relays directional dodges against seat %s with hand %s',
+    async (seat, hand) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(10_000);
+      const a = new FakeSocket('dodge-a');
+      const b = new FakeSocket('dodge-b');
+      const { coordinator } = coordinatorWith(a, b);
+      try {
+        a.clientEmit('matchmaking.join', {});
+        b.clientEmit('matchmaking.join', {});
+        const { matchId } = a.messages('matchmaking.matched')[0] as { matchId: string };
+        const attacker = seat === 'A' ? a : b;
+        const defender = seat === 'A' ? b : a;
+        const defenderSeat = seat === 'A' ? 'B' : 'A';
+        for (const socket of [a, b]) {
+          socket.clientEmit('room.calibrated', { calibrated: true });
+          socket.clientEmit('room.ready', { ready: true });
+        }
+        await vi.advanceTimersByTimeAsync(3_000);
+
+        defender.clientEmit('game.input', {
+          ...input(matchId, 1),
+          punchAttempt: undefined,
+          dodge: hand,
+          guard: true,
+        });
+        expect(
+          (attacker.messages('game.opponentInput').at(-1) as OpponentInputPayload).input.dodge,
+        ).toBe(hand);
+        attacker.clientEmit('game.input', { ...input(matchId, 2), punchAttempt: hand });
+        await vi.advanceTimersByTimeAsync(500);
+        for (const socket of [a, b]) {
+          expect(socket.messages('game.miss')).toHaveLength(1);
+          expect(socket.messages('game.hit')).toHaveLength(0);
+          expect(socket.messages('game.block')).toHaveLength(0);
+          const snapshot = socket.messages('match.snapshot').at(-1) as MatchSnapshot;
+          expect(snapshot.players[defenderSeat].hp).toBe(100);
+          expect(snapshot.players[defenderSeat].dodge).toBe(hand);
+          expect(snapshot.stats[seat].misses).toBe(1);
+        }
+
+        // The opposite hand still hits a dodging fighter with no guard.
+        defender.clientEmit('game.input', {
+          ...input(matchId, 3),
+          punchAttempt: undefined,
+          dodge: hand,
+        });
+        attacker.clientEmit('game.input', {
+          ...input(matchId, 4),
+          punchAttempt: hand === 'left' ? 'right' : 'left',
+        });
+        await vi.advanceTimersByTimeAsync(500);
+        expect(
+          (a.messages('match.snapshot').at(-1) as MatchSnapshot).players[defenderSeat].hp,
+        ).toBe(94);
+
+        // Re-centering during windup releases dodge before the server checks impact.
+        attacker.clientEmit('game.input', { ...input(matchId, 5), punchAttempt: hand });
+        defender.clientEmit('game.input', { ...input(matchId, 6), punchAttempt: undefined });
+        await vi.advanceTimersByTimeAsync(300);
+        for (const socket of [a, b]) {
+          expect(socket.messages('game.hit')).toHaveLength(2);
+          const snapshot = socket.messages('match.snapshot').at(-1) as MatchSnapshot;
+          expect(snapshot.players[defenderSeat].hp).toBe(88);
+          expect(snapshot.players[defenderSeat].dodge).toBeUndefined();
+        }
+      } finally {
+        coordinator.close();
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it('pairs, starts, resolves a punch, and sends identical snapshots', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(10_000);

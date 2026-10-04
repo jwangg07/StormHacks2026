@@ -18,6 +18,12 @@ export function dodgeView(dodge?: Hand) {
   return { x: side * 0.15, roll: side === 0 ? 0 : -side * 0.12 };
 }
 
+/** Face-to-face opponent: their left dodge appears on the viewer's right. */
+export function opponentDodgeView(dodge?: Hand) {
+  const side = dodge === 'left' ? 1 : dodge === 'right' ? -1 : 0;
+  return { x: side * 0.42, roll: side === 0 ? 0 : -side * 0.18 };
+}
+
 type Direction = ArmDirections['upper'];
 
 const unit = (direction: Direction): Direction => {

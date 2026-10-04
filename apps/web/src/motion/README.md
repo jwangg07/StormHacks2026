@@ -121,6 +121,10 @@ Duck needs both head and shoulder
 drop, enters after 100 ms, uses a smaller exit threshold, expires at 800 ms, and
 requires 400 ms neutral to rearm. Attacks suppress duck during recovery; left and right
 dodges can continue while punching.
+In multiplayer, dodge direction is sent with controls and mirrored on the opponent
+model. An opponent dodging left moves to your right and avoids your left punch;
+an opponent dodging right moves to your left and avoids your right punch. The other
+hand still uses the usual hit and block rules. Dodge is checked at server impact time.
 
 `/game` exposes guided calibration in a dialog, a live camera preview at the bottom left,
 and sensitivity, local feedback, counts, and developer diagnostics in the movement setup drawer.

@@ -15,6 +15,9 @@ export function resolveAttack(
   defender: FighterState,
   hand: Hand,
 ): CombatOutcome {
+  // Fighters face each other: the defender's left is the attacker's right.
+  // Slipping away from that hand's strike lane avoids it, even with guard raised.
+  if (defender.dodge === hand) return 'MISS';
   const glove = hand === 'left' ? attacker.leftHand : attacker.rightHand;
   const head = defender.headOffset;
   const headInPath =

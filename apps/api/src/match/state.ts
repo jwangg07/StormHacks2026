@@ -112,6 +112,7 @@ export class AuthoritativeMatch {
     player.tracking = input.tracking;
     player.guard = input.guard;
     player.duck = input.duck;
+    player.dodge = input.tracking === 'VALID' && !input.duck ? input.dodge : undefined;
     player.headOffset = input.head;
     player.leftHand = input.leftHand;
     player.rightHand = input.rightHand;

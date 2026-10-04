@@ -9,13 +9,30 @@ const source = await readFile(new URL('../src/game/boxingAnimation.ts', import.m
 const { outputText } = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 });
-const { dodgeView, punchPose, strikeStrength, BLOCK_POSE, PUNCH_IMPACT_MS, PUNCH_DURATION_MS } =
-  await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+const {
+  dodgeView,
+  opponentDodgeView,
+  punchPose,
+  strikeStrength,
+  BLOCK_POSE,
+  PUNCH_IMPACT_MS,
+  PUNCH_DURATION_MS,
+} = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 test('right dodge rolls clockwise, left rolls counterclockwise, neutral re-centers', () => {
   assert.ok(dodgeView('right').roll < 0 && dodgeView('right').x > 0);
   assert.ok(dodgeView('left').roll > 0 && dodgeView('left').x < 0);
   assert.equal(dodgeView().roll, 0);
   assert.equal(dodgeView().x, 0);
+});
+test('opponent dodge mirrors direction and rolls the model toward its movement', () => {
+  const left = opponentDodgeView('left');
+  const right = opponentDodgeView('right');
+  assert.ok(left.x > 0 && left.roll < 0, 'opponent left moves to viewer right');
+  assert.ok(right.x < 0 && right.roll > 0, 'opponent right moves to viewer left');
+  assert.equal(left.x, -right.x);
+  assert.equal(left.roll, -right.roll);
+  assert.equal(opponentDodgeView().x, 0);
+  assert.equal(opponentDodgeView().roll, 0);
 });
 const guard = {
   upper: { x: 0.35, y: -0.85, z: 0.4 },

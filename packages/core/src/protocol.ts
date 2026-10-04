@@ -55,6 +55,7 @@ export const gameInputSchema = z
     body: z.object({ x: finite(-1, 1), y: finite(-1, 1).optional(), z: finite(-1, 1) }).strict(),
     guard: z.boolean(),
     duck: z.boolean(),
+    dodge: z.enum(['left', 'right']).optional(),
     punchAttempt: z.enum(['left', 'right']).optional(),
     avatarPose: avatarPoseSchema.optional(),
   })
@@ -142,6 +143,8 @@ export interface FighterState {
   hp: number;
   guard: boolean;
   duck: boolean;
+  /** Direction from this fighter's own perspective. */
+  dodge?: Hand;
   tracking: TrackingState;
   headOffset: { x: number; y: number; z: number };
   leftHand: { x: number; y: number; z: number };

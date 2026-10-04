@@ -45,6 +45,7 @@ function inputFromMotion(matchId: string, sequence: number, frame: MotionFrame):
     body: { x: 0, z: 0 },
     guard: frame.guard,
     duck: frame.duck,
+    dodge: frame.dodge,
     punchAttempt: frame.punch,
     avatarPose: frame.arms,
   };
