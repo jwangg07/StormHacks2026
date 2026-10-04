@@ -129,3 +129,18 @@ export interface MatchSnapshot extends MatchState {
 
 /** Largest camera-baked fighter skin (JPEG) a client may share. */
 export const AVATAR_SKIN_MAX_BYTES = 256 * 1024;
+
+const isJpeg = (bytes: Uint8Array) => bytes.byteLength >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+export const avatarSkinSchema = z
+  .object({
+    jpeg: z.custom<Uint8Array>(
+      (value) => value instanceof Uint8Array && value.byteLength <= AVATAR_SKIN_MAX_BYTES && isJpeg(value),
+      'Skin must be a JPEG of at most 256 KB.',
+    ),
+  })
+  .strict();
+export type AvatarSkin = z.infer<typeof avatarSkinSchema>;
+export interface OpponentSkinPayload {
+  seat: Seat;
+  jpeg: Uint8Array;
+}
