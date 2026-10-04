@@ -35,6 +35,9 @@ export interface PoseSample {
   tracking: TrackingState;
   confidence: number;
   missingLandmarks: string[];
+  /** Model-estimated depth, kept local; not measured distance or force. */
+  worldLandmarks?: Record<string, Landmark>;
+  segmentRatios?: Record<'left' | 'right', { upper: number; fore: number }>;
 }
 
 export function createPoseSample(
@@ -42,9 +45,11 @@ export function createPoseSample(
   timestamp: number,
   width: number,
   height: number,
+  worldPoints: readonly Landmark[] = [],
 ): PoseSample {
   const frame: PoseFrame = { timestamp, width, height, landmarks: {} };
   const aspectLandmarks: Record<string, Landmark> = {};
+  const worldLandmarks: Record<string, Landmark> = {};
   const validDimensions = width > 0 && height > 0 && Number.isFinite(width / height);
   const aspect = validDimensions ? width / height : 1;
   for (const [name, index] of Object.entries(POSE_LANDMARKS)) {
@@ -62,6 +67,13 @@ export function createPoseSample(
       continue;
     frame.landmarks[name] = { ...point };
     aspectLandmarks[name] = { ...point, x: point.x * aspect, z: point.z * aspect };
+    const world = worldPoints[index];
+    if (
+      world &&
+      [world.x, world.y, world.z, world.visibility].every(Number.isFinite) &&
+      world.visibility >= POSE_VISIBILITY_THRESHOLD
+    )
+      worldLandmarks[name] = { ...world };
   }
   const missingLandmarks = REQUIRED_LANDMARKS.filter((name) => !frame.landmarks[name]);
   const confidence = Math.min(
@@ -77,6 +89,7 @@ export function createPoseSample(
     aspectLandmarks,
     confidence,
     missingLandmarks,
+    ...(Object.keys(worldLandmarks).length ? { worldLandmarks } : {}),
     tracking:
       landmarks.length === 0 || !validDimensions
         ? 'LOST'

@@ -1,5 +1,6 @@
 import type { Landmark } from './types';
 import type { PoseSample } from './pose';
+import { reliableWorldArm } from './geometry';
 
 /**
  * Body-relative direction: x = player's left, y = up, z = forward (toward the camera).
@@ -68,6 +69,7 @@ export class ArmPoseEstimator {
     if (!sample) return { left: null, right: null };
     const points = sample.aspectLandmarks;
     const timestamp = sample.frame.timestamp;
+    if (timestamp - this.lastTimestamp > 300) this.reset();
     const elapsed = Math.max(0, timestamp - this.lastTimestamp);
     this.lastTimestamp = timestamp;
     const decay = Number.isFinite(elapsed) ? Math.exp(-elapsed / SEGMENT_LENGTH_DECAY_MS) : 0;
@@ -81,20 +83,45 @@ export class ArmPoseEstimator {
       const wrist = points[`${side}Wrist`];
       if (!shoulder || !elbow || !wrist) return null;
       const lengths = this.lengths[side];
-      lengths.upper = Math.max(
-        hypot2(shoulder, elbow),
-        lengths.upper * decay,
-        UPPER_ARM_SHOULDER_RATIO * shoulderWidth,
-      );
-      lengths.fore = Math.max(
-        hypot2(elbow, wrist),
-        lengths.fore * decay,
-        FOREARM_SHOULDER_RATIO * shoulderWidth,
-      );
-      return {
-        upper: segmentDirection(shoulder, elbow, lengths.upper),
-        fore: segmentDirection(elbow, wrist, lengths.fore),
+      const calibrated = sample.segmentRatios?.[side];
+      lengths.upper = calibrated
+        ? Math.max(hypot2(shoulder, elbow), calibrated.upper * shoulderWidth)
+        : Math.max(
+            hypot2(shoulder, elbow),
+            lengths.upper * decay,
+            UPPER_ARM_SHOULDER_RATIO * shoulderWidth,
+          );
+      lengths.fore = calibrated
+        ? Math.max(hypot2(elbow, wrist), calibrated.fore * shoulderWidth)
+        : Math.max(
+            hypot2(elbow, wrist),
+            lengths.fore * decay,
+            FOREARM_SHOULDER_RATIO * shoulderWidth,
+          );
+      const upper = segmentDirection(shoulder, elbow, lengths.upper);
+      const fore = segmentDirection(elbow, wrist, lengths.fore);
+      const world = reliableWorldArm(sample, side);
+      const blend = (direction: Direction, from: Landmark, to: Landmark): Direction => {
+        const dx = to.x - from.x,
+          dy = from.y - to.y,
+          dz = from.z - to.z;
+        const magnitude = Math.hypot(dx, dy, dz);
+        if (magnitude < 1e-6) return direction;
+        const measured = { x: dx / magnitude, y: dy / magnitude, z: dz / magnitude };
+        if (direction.x * measured.x + direction.y * measured.y + direction.z * measured.z < -0.25)
+          return direction;
+        const x = direction.x * 0.45 + measured.x * 0.55;
+        const y = direction.y * 0.45 + measured.y * 0.55;
+        const z = direction.z * 0.45 + measured.z * 0.55;
+        const length = Math.hypot(x, y, z);
+        return { x: x / length, y: y / length, z: z / length };
       };
+      return world
+        ? {
+            upper: blend(upper, world.shoulder, world.elbow),
+            fore: blend(fore, world.elbow, world.wrist),
+          }
+        : { upper, fore };
     };
     return { left: arm('left'), right: arm('right') };
   }

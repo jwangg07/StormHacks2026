@@ -72,7 +72,13 @@ scope.onmessage = ({ data }) => {
       const inferenceMs = performance.now() - started;
       send({
         type: 'result',
-        sample: createPoseSample(result.landmarks[0] ?? [], timestamp, bitmap.width, bitmap.height),
+        sample: createPoseSample(
+          result.landmarks[0] ?? [],
+          timestamp,
+          bitmap.width,
+          bitmap.height,
+          result.worldLandmarks[0] ?? [],
+        ),
         inferenceMs,
       });
     } catch (error) {

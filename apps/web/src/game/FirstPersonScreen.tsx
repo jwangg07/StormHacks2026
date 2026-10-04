@@ -6,6 +6,8 @@ import { PerspectiveCamera } from '@react-three/drei';
 import { useCamera } from '../cam/useCamera';
 import { useVideoStream } from '../cam/useVideoStream';
 import { usePoseLandmarker } from '../motion/usePoseLandmarker';
+import { useMotionControls } from '../motion/useMotionControls';
+import { MotionSetup } from '../cam/MotionSetup';
 import { EYE_FORWARD, EYE_HEIGHT, FirstPersonArms } from './FirstPersonArms';
 import { useSkin } from '../avatar/skinStore';
 import './firstPerson.css';
@@ -75,6 +77,7 @@ export function FirstPersonScreen() {
   const pose = usePoseLandmarker(videoRef, canvasRef, stream, true);
   const diagnostics = pose.diagnostics;
   const skin = useSkin();
+  const motion = useMotionControls(pose, stream);
 
   // Entering this screen is the player's choice to set up, so request the camera now.
   const startOnce = useRef(start);
@@ -155,6 +158,7 @@ export function FirstPersonScreen() {
             </button>
           ) : null}
         </div>
+        {stream ? <MotionSetup motion={motion} pose={pose} /> : null}
       </aside>
     </main>
   );
