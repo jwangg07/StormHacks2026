@@ -471,7 +471,7 @@ export function LobbyPage() {
 
       <div className="gym-floor-label" aria-hidden="true">
         <span>ROUND 01</span>
-        <i /> <span>WEBCAM BOXER</span>
+        <i /> <span>OBOXLE</span>
       </div>
     </main>
   );

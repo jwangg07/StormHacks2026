@@ -400,7 +400,7 @@ export function FirstPersonScreen() {
         </Link>
         <div className="fp-session-display">
           <span className="fp-session-mark">
-            WEBCAM BOXER
+            OBOXLE
             <i /> TEST ENVIRONMENT
           </span>
           <p className="fp-title">
@@ -479,8 +479,8 @@ export function FirstPersonScreen() {
       ) : null}
 
       <div className="fp-floor-mark" aria-hidden="true">
-        <span>WEBCAM BOXER</span>
-        <i /> <span>PRE-ALPHA 2026-10-03</span>
+        <span>OBOXLE</span>
+        <i /> <span>PRE-ALPHA 2026-10-04</span>
       </div>
     </main>
   );

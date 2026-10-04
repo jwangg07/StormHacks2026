@@ -2929,7 +2929,7 @@ export function AvatarPage() {
       <header className="topbar">
         <Link className="wordmark" to="/" aria-label="Return to lobby">
           <span className="wordmark-mark" aria-hidden="true" />
-          WebcamBoxer
+          OBOXLE
         </Link>
         <Link className="back-link" to="/">
           ← Back to lobby
