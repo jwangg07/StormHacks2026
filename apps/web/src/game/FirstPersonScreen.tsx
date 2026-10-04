@@ -387,7 +387,10 @@ export function FirstPersonScreen() {
         </div>
       ) : null}
 
-      <header className="fp-hud" aria-label="Sparring controls">
+      <header
+        className={`fp-hud${calibrationOpen ? ' is-calibrating' : ''}`}
+        aria-label="Sparring controls"
+      >
         <Link className="fp-back" to="/" onClick={leaveFight}>
           LEAVE THE RING
         </Link>

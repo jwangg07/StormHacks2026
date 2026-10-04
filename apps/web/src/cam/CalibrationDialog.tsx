@@ -29,28 +29,28 @@ export function CalibrationDialog({
   const title = !camera.stream
     ? camera.status === 'error'
       ? 'Camera needs attention'
-      : 'Automatic calibration: enable the camera'
+      : 'Turn on your camera'
     : tracking?.phase === 'loading'
-      ? 'Warming up the camera'
+      ? 'Warming up'
       : tracking?.phase === 'error'
-        ? 'Tracking needs a retry'
+        ? 'Tracking stopped'
         : !usable
           ? 'Find your mark'
           : calibration?.phase === 'collecting'
-            ? 'Hold fists near your chest'
+            ? 'Hold your stance'
             : calibration?.nextCheck
               ? `Show your ${LABELS[calibration.nextCheck].toLowerCase()}`
               : calibration?.phase === 'ready'
-                ? 'Tracking is steady'
+                ? "You're set"
                 : 'Find your neutral stance';
   const instruction = !camera.stream
-    ? 'Allow camera access to let your corner trainer read your stance. Video stays on this device.'
+    ? 'Allow camera access so the trainer can read your stance. Video never leaves this device.'
     : tracking?.phase === 'loading'
-      ? 'The local trainer is getting the old gym camera ready. Keep your upper body in view.'
+      ? 'Starting the tracker. Keep your upper body in view.'
       : tracking?.phase === 'error'
         ? tracking.message
         : !usable
-          ? 'Keep your head, shoulders, elbows, and wrists inside the camera frame.'
+          ? 'Step back until your head, shoulders, elbows, and wrists are inside the corner marks.'
           : calibration?.phase === 'collecting'
             ? calibration.message
             : calibration?.nextCheck === 'leftPunch'
@@ -60,147 +60,112 @@ export function CalibrationDialog({
                 : calibration?.nextCheck === 'guard'
                   ? 'Bring both hands up near your face and hold your guard.'
                   : calibration?.phase === 'ready'
-                    ? 'Keep your upper body in view. The ring opens automatically.'
-                    : 'Stand in a relaxed neutral position with elbows bent and fists near your chest, below your face.';
-  const complete = calibration ? Object.values(calibration.checks).filter(Boolean).length : 0;
+                    ? 'Stay in view. The ring opens automatically.'
+                    : 'Stand relaxed with elbows bent and fists near your chest, below your face.';
   const cameraStatus = !camera.stream
     ? camera.status === 'error'
-      ? 'CAMERA UNAVAILABLE'
+      ? 'Camera unavailable'
       : camera.status === 'requesting'
-        ? 'WAITING FOR CAMERA'
-        : 'CAMERA OFF'
+        ? 'Waiting for camera'
+        : 'Camera off'
     : tracking?.phase === 'loading'
-      ? 'STARTING LOCAL TRACKER'
+      ? 'Starting tracker'
       : tracking?.phase === 'error'
-        ? 'TRACKER NEEDS A RETRY'
+        ? 'Tracker stopped'
         : tracking?.tracking === 'VALID'
-          ? 'UPPER BODY IN FRAME'
-          : tracking?.tracking === 'LOW_CONFIDENCE'
-            ? `FIND: ${tracking.missingLandmarks.join(', ') || 'MOVE INTO FRAME'}`
-            : 'NO FIGHTER IN FRAME';
+          ? 'Upper body in frame'
+          : tracking?.tracking === 'LOW_CONFIDENCE' && tracking.missingLandmarks.length
+            ? `Can't see your ${tracking.missingLandmarks.map(spaced).join(', ')}`
+            : 'No one in frame';
 
   return (
     <div className="fp-calibration-scrim">
       <section
         className="fp-calibration-dialog"
         role="dialog"
-        aria-modal="true"
         aria-labelledby={`${id}-title`}
         aria-describedby={`${id}-instruction`}
       >
-        <div className="fp-dialog-topline">
-          <span>CALIBRATION DIALOG · TRAINER</span>
-          <span>·</span>
-        </div>
-        <div className="fp-dialog-title-row">
-          <div>
-            <p className="fp-dialog-kicker">AUTOMATIC CALIBRATION</p>
-            <h1 id={`${id}-title`}>{title}</h1>
-          </div>
-        </div>
-        <div className="fp-dialog-layout">
-          <div className="fp-dialog-guidance">
-            <p
-              className="fp-dialog-instruction"
-              id={`${id}-instruction`}
-              role="status"
-              aria-live="polite"
-            >
-              {instruction}
-            </p>
+        <figure className="fp-dialog-camera" aria-label="Camera framing check">
+          <CameraView videoRef={videoRef} canvasRef={canvasRef} stream={camera.stream} />
+          <figcaption
+            className="fp-dialog-camera-status"
+            data-state={tracking?.phase === 'ready' ? tracking.tracking : 'LOST'}
+            role="status"
+            aria-live="polite"
+          >
+            <i aria-hidden="true" />
+            {cameraStatus}
+          </figcaption>
+        </figure>
 
-            {calibration?.phase === 'collecting' ? (
-              <div className="fp-dialog-progress" aria-label="Neutral stance calibration">
-                <div>
-                  <span>NEUTRAL STANCE</span>
-                  <strong>{Math.round(calibration.progress * 100)}%</strong>
-                </div>
-                <progress
-                  value={calibration.progress}
-                  max={1}
-                  aria-label="Neutral stance calibration progress"
-                />
-              </div>
-            ) : null}
+        <div className="fp-dialog-guidance">
+          <p className="fp-dialog-kicker">Calibration</p>
+          <h1 id={`${id}-title`}>{title}</h1>
+          <p
+            className="fp-dialog-instruction"
+            id={`${id}-instruction`}
+            role="status"
+            aria-live="polite"
+          >
+            {instruction}
+          </p>
 
-            <div className="fp-dialog-check-heading">
-              <span>SHOW THE TRAINER</span>
-              <span>
-                {complete} / {ACTION_CHECKS.length}
-              </span>
-            </div>
-            <ol className="fp-dialog-checks">
-              {ACTION_CHECKS.map((action, index) => (
-                <li
-                  key={action}
-                  data-complete={calibration?.checks[action] ?? false}
-                  data-current={calibration?.nextCheck === action}
-                >
-                  <span className="fp-dialog-check-number">0{index + 1}</span>
+          {calibration?.phase === 'collecting' ? (
+            <progress
+              className="fp-dialog-progress"
+              value={calibration.progress}
+              max={1}
+              aria-label="Neutral stance"
+            />
+          ) : null}
+
+          <ol className="fp-dialog-checks" aria-label="Moves to show the trainer">
+            {ACTION_CHECKS.map((action, index) => {
+              const done = calibration?.checks[action] ?? false;
+              const current = calibration?.nextCheck === action;
+              return (
+                <li key={action} data-complete={done} data-current={current}>
+                  <span className="fp-dialog-check-number">{index + 1}</span>
                   <span>{LABELS[action]}</span>
-                  <small>
-                    {calibration?.checks[action]
-                      ? 'DONE'
-                      : calibration?.nextCheck === action
-                        ? 'NOW'
-                        : 'WAIT'}
-                  </small>
+                  <small>{done ? 'Done' : current ? 'Now' : null}</small>
                 </li>
-              ))}
-            </ol>
+              );
+            })}
+          </ol>
 
-            <div className="fp-dialog-actions">
-              {!camera.stream ? (
-                <button
-                  type="button"
-                  className="fp-dialog-primary"
-                  onClick={() => void camera.start()}
-                  disabled={camera.status === 'requesting'}
-                >
-                  {camera.status === 'requesting'
-                    ? 'WAITING FOR CAMERA…'
-                    : camera.status === 'error'
-                      ? 'RETRY CAMERA'
-                      : 'START CAMERA'}
-                </button>
-              ) : tracking?.phase === 'error' ? (
-                <button type="button" className="fp-dialog-primary" onClick={pose.retry}>
-                  RETRY TRACKING
-                </button>
-              ) : calibration?.phase === 'ready' ? (
-                <span className="fp-dialog-wait" role="status">
-                  <i /> ENTERING THE RING
-                </span>
-              ) : (
-                <span className="fp-dialog-wait" role="status">
-                  <i /> TRAINER IS WATCHING
-                </span>
-              )}
-            </div>
-            <p className="fp-dialog-footnote">LOCAL CAMERA ONLY</p>
+          <div className="fp-dialog-actions">
+            {!camera.stream ? (
+              <button
+                type="button"
+                className="fp-dialog-primary"
+                onClick={() => void camera.start()}
+                disabled={camera.status === 'requesting'}
+              >
+                {camera.status === 'requesting'
+                  ? 'Waiting for camera…'
+                  : camera.status === 'error'
+                    ? 'Retry camera'
+                    : 'Turn on camera'}
+              </button>
+            ) : tracking?.phase === 'error' ? (
+              <button type="button" className="fp-dialog-primary" onClick={pose.retry}>
+                Retry tracking
+              </button>
+            ) : (
+              <span className="fp-dialog-wait">
+                <i aria-hidden="true" />
+                {calibration?.phase === 'ready' ? 'Entering the ring' : 'Trainer is watching'}
+              </span>
+            )}
           </div>
-
-          <aside className="fp-dialog-camera" aria-label="Camera framing check">
-            <div className="fp-dialog-camera-heading">
-              <span>CALIBRATING CAMERA...</span>
-              <span>MIRRORED VIEW</span>
-            </div>
-            <CameraView videoRef={videoRef} canvasRef={canvasRef} stream={camera.stream} />
-            <div
-              className="fp-dialog-camera-status"
-              data-state={tracking?.phase === 'ready' ? tracking.tracking : 'LOST'}
-              role="status"
-              aria-live="polite"
-            >
-              <i aria-hidden="true" />
-              <span>{cameraStatus}</span>
-            </div>
-            <p className="fp-dialog-camera-tip">
-              Keep your head, shoulders, elbows, and wrists inside the corner marks.
-            </p>
-          </aside>
         </div>
       </section>
     </div>
   );
+}
+
+/** `leftWrist` → `left wrist` for the framing hint. */
+function spaced(landmark: string) {
+  return landmark.replace(/[A-Z]/g, (letter) => ` ${letter.toLowerCase()}`);
 }

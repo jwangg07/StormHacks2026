@@ -191,8 +191,14 @@ export function AvatarPage() {
         <span className="avatar-rotate-hint">
           DRAG TO ROTATE <i /> SCROLL TO ZOOM
         </span>
-        <div className="avatar-instruction" role="status" aria-live="polite">
-          <span className="avatar-instruction-kicker">{phaseLabel}</span>
+        <div
+          className={`avatar-instruction${state.phase === 'review' ? ' is-transient' : ''}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span key={phaseLabel} className="avatar-instruction-kicker">
+            {phaseLabel}
+          </span>
           <p key={message} className="avatar-instruction-text">
             {message}
           </p>
