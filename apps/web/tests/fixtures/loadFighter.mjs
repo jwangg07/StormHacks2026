@@ -1,3 +1,4 @@
+import { URL } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 

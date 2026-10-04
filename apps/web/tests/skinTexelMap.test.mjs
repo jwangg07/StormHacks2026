@@ -1,3 +1,4 @@
+import { URL } from 'node:url';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadTs } from '../../../tools/test/loadTs.mjs';
