@@ -1,4 +1,9 @@
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createApiServer } from './server';
+
+const rootEnvFile = fileURLToPath(new URL('../../../.env', import.meta.url));
+if (existsSync(rootEnvFile)) process.loadEnvFile(rootEnvFile);
 
 const runtime = await createApiServer();
 const port = await runtime.start();

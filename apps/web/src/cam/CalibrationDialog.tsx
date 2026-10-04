@@ -1,10 +1,12 @@
-import { useId } from 'react';
+import { useEffect, useId } from 'react';
 import type { RefObject } from 'react';
 import { ACTION_CHECKS } from '@wb/motion';
+import type { CalibrationCueId } from '@wb/core';
 import { CameraView } from './CameraView';
 import type { useCamera } from './useCamera';
 import type { useMotionControls } from '../motion/useMotionControls';
 import type { usePoseLandmarker } from '../motion/usePoseLandmarker';
+import type { CoachVoice } from '../audio/useCoachVoice';
 
 const LABELS = { leftPunch: 'Left punch', rightPunch: 'Right punch', guard: 'Guard' };
 
@@ -14,14 +16,17 @@ export function CalibrationDialog({
   pose,
   videoRef,
   canvasRef,
+  voice,
 }: {
   camera: ReturnType<typeof useCamera>;
   motion: ReturnType<typeof useMotionControls>;
   pose: ReturnType<typeof usePoseLandmarker>;
   videoRef: RefObject<HTMLVideoElement | null>;
   canvasRef: RefObject<HTMLCanvasElement | null>;
+  voice: CoachVoice;
 }) {
   const id = useId();
+  const { cancel, speak } = voice;
   const status = motion.snapshot;
   const calibration = status?.calibration;
   const tracking = pose.diagnostics;
@@ -77,6 +82,30 @@ export function CalibrationDialog({
           : tracking?.tracking === 'LOW_CONFIDENCE' && tracking.missingLandmarks.length
             ? `Can't see your ${tracking.missingLandmarks.map(spaced).join(', ')}`
             : 'No one in frame';
+  const voiceCue: CalibrationCueId = !camera.stream
+    ? camera.status === 'requesting'
+      ? 'cameraWaiting'
+      : 'cameraOn'
+    : tracking?.phase === 'loading'
+      ? 'trackerLoading'
+      : tracking?.phase === 'error'
+        ? 'trackerRetry'
+        : !usable
+          ? 'findFrame'
+          : calibration?.phase === 'collecting'
+            ? 'neutral'
+            : calibration?.nextCheck ?? 'calibrationReady';
+
+  useEffect(() => {
+    cancel('calibration');
+    speak(voiceCue, 'calibration', 0);
+    if (voiceCue === 'calibrationReady') return;
+    const repeat = window.setInterval(() => speak(voiceCue, 'calibration', 0), 7_500);
+    return () => {
+      window.clearInterval(repeat);
+      cancel('calibration');
+    };
+  }, [cancel, speak, voiceCue]);
 
   return (
     <div className="fp-calibration-scrim">
@@ -100,7 +129,28 @@ export function CalibrationDialog({
         </figure>
 
         <div className="fp-dialog-guidance">
-          <p className="fp-dialog-kicker">Calibration</p>
+          <div className="fp-dialog-titlebar">
+            <p className="fp-dialog-kicker">Calibration</p>
+            <button
+              className="fp-dialog-voice"
+              type="button"
+              onClick={voice.toggle}
+              aria-pressed={voice.enabled}
+              title={
+                voice.status === 'offline'
+                  ? 'Set ELEVENLABS_API_KEY on the API server'
+                  : undefined
+              }
+            >
+              <span aria-hidden="true">{voice.enabled ? '♪' : '×'}</span>
+              {voice.status === 'locked'
+                ? 'TAP TO ENABLE VOICE'
+                : voice.enabled
+                  ? 'VOICE COACH ON'
+                  : 'VOICE COACH OFF'}
+              {voice.status === 'offline' ? ' · OFFLINE' : null}
+            </button>
+          </div>
           <h1 id={`${id}-title`}>{title}</h1>
           <p
             className="fp-dialog-instruction"

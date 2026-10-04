@@ -11,6 +11,7 @@ import express from 'express';
 import { createServer, type Server } from 'node:http';
 import { readApiConfig, type ApiConfig } from './config/env';
 import { addHealthRoutes } from './http/health';
+import { addVoiceRoutes } from './http/voice';
 import { AuthoritativeMatch, type MatchRuntimeOptions } from './match/state';
 import { addSockets } from './net/socket';
 import { MatchPersistenceService } from './services/matchPersistence';
@@ -55,6 +56,7 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<A
   app.use(cors({ origin: config.webOrigin }));
   app.use(express.json({ limit: '16kb' }));
   addHealthRoutes(app, () => ready);
+  addVoiceRoutes(app, config);
 
   const server = createServer(app);
   const createMatch = (matchOptions: MatchRuntimeOptions) =>

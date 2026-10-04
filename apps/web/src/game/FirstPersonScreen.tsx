@@ -18,6 +18,8 @@ import { useBlobTexture, useSkinBlob } from '../avatar/skinStore';
 import { useMultiplayer } from '../net/MultiplayerProvider';
 import { publishSkin, useOpponentSkinBlob } from '../net/skinSync';
 import { useMultiplayerFight } from '../net/useMultiplayerFight';
+import { useCoachVoice } from '../audio/useCoachVoice';
+import { useFightCoachCallouts } from '../audio/useFightCoachCallouts';
 import { dodgeView, PUNCH_IMPACT_MS } from './boxingAnimation';
 import { useSurface } from './surfaces';
 import { useSoloTraining } from './useSoloTraining';
@@ -410,6 +412,14 @@ export function FirstPersonScreen() {
   const fight = useMultiplayerFight(motion);
   const soloWorkout = useSoloTraining(motion, !fight.assignment);
   const { socket, assignment, leaveFight } = useMultiplayer();
+  const voice = useCoachVoice();
+  useFightCoachCallouts(
+    socket,
+    assignment,
+    fight.snapshot,
+    fight.connectionState === 'FIGHTING' && !calibrationOpen,
+    voice,
+  );
   const opponentSkin = useBlobTexture(useOpponentSkinBlob(socket));
   const ownSeat = assignment?.seat;
   const opponentSeat = ownSeat === 'A' ? 'B' : 'A';
@@ -568,6 +578,12 @@ export function FirstPersonScreen() {
           {punch.hand.toUpperCase()} {punch.move.toUpperCase()}
         </div>
       ) : null}
+      {!calibrationOpen && voice.caption ? (
+        <div className="fp-coach-caption" role="status" aria-live="polite">
+          <span>THE CORNER</span>
+          {voice.caption}
+        </div>
+      ) : null}
 
       <header
         className={`fp-hud${calibrationOpen ? ' is-calibrating' : ''}`}
@@ -585,7 +601,7 @@ export function FirstPersonScreen() {
             {fight.connectionState === 'FIGHTING'
               ? `Fight · ${fight.snapshot?.players.A.hp ?? 100}–${fight.snapshot?.players.B.hp ?? 100}`
               : fight.connectionState === 'SOLO'
-                ? 'Solo · bag work'
+                ? 'Solo · punching bag'
                 : `Multiplayer · ${fight.connectionState.toLowerCase()}`}
           </p>
           {!fight.assignment && !calibrationOpen ? (
@@ -599,18 +615,38 @@ export function FirstPersonScreen() {
             </p>
           ) : null}
         </div>
-        <button
-          className="fp-setup-toggle"
-          type="button"
-          aria-expanded={setupOpen}
-          aria-controls="fp-camera-panel"
-          onClick={() => setSetupOpen((open) => !open)}
-        >
-          <span className="fp-toggle-mark" aria-hidden="true">
-            {setupOpen ? '[-]' : '[+]'}
-          </span>
-          {setupOpen ? 'HIDE SETUP' : 'MOVEMENT SETUP'}
-        </button>
+        <div className="fp-hud-tools">
+          <button
+            className="fp-voice-toggle"
+            type="button"
+            onClick={voice.toggle}
+            aria-pressed={voice.enabled}
+            aria-label={
+              voice.status === 'locked'
+                ? 'Enable voice playback'
+                : voice.enabled
+                  ? 'Mute voice coach'
+                  : 'Enable voice coach'
+            }
+            title={
+              voice.status === 'offline' ? 'Set ELEVENLABS_API_KEY on the API server' : undefined
+            }
+          >
+            <span aria-hidden="true">{voice.enabled ? '♪' : '×'}</span>
+          </button>
+          <button
+            className="fp-setup-toggle"
+            type="button"
+            aria-expanded={setupOpen}
+            aria-controls="fp-camera-panel"
+            onClick={() => setSetupOpen((open) => !open)}
+          >
+            <span className="fp-toggle-mark" aria-hidden="true">
+              {setupOpen ? '[-]' : '[+]'}
+            </span>
+            {setupOpen ? 'HIDE SETUP' : 'MOVEMENT SETUP'}
+          </button>
+        </div>
       </header>
 
       <aside
@@ -656,6 +692,7 @@ export function FirstPersonScreen() {
           pose={pose}
           videoRef={videoRef}
           canvasRef={canvasRef}
+          voice={voice}
         />
       ) : null}
 
