@@ -9,6 +9,7 @@ import { useSurface } from '../game/surfaces';
 import { useMultiplayer } from '../net/MultiplayerProvider';
 import { MusicToggle } from '../ui/MusicToggle';
 import { SparringRoomDialog } from '../ui/SparringRoomDialog';
+import { CityWindows } from './CityWindows';
 import {
   AvatarPodium,
   BOARD_SHOT,
@@ -25,6 +26,8 @@ const stats: StatLine[] = [
   { label: 'Blocks', value: '24' },
   { label: 'Best round', value: '43 sec' },
 ];
+
+const GYM_FOG = { color: '#161817', near: 12, far: 29 };
 
 const CAMERA_DISTANCE = 13.2;
 /** Standing eye level: 1.7 m above the gym floor the ring sits on (y = -0.22). */
@@ -146,7 +149,7 @@ function GymRoom({ hovered, skin, onHover, onSelect }: GymRoomProps) {
   return (
     <>
       <color attach="background" args={['#161817']} />
-      <fog attach="fog" args={['#161817', 12, 29]} />
+      <fog attach="fog" args={[GYM_FOG.color, GYM_FOG.near, GYM_FOG.far]} />
       <hemisphereLight args={['#d7c9a5', '#171b1b', 1.05]} />
       <ambientLight intensity={0.34} />
       <directionalLight position={[-5, 8, 4]} intensity={1.45} color="#e5c99a" />
@@ -178,18 +181,7 @@ function GymRoom({ hovered, skin, onHover, onSelect }: GymRoomProps) {
         <boxGeometry args={[0.8, 10, 24]} />
         <meshStandardMaterial map={sideWall} color="#292d2b" roughness={1} flatShading />
       </mesh>
-      {[-9, -4, 1, 6, 11].map((x) => (
-        <group key={x} position={[x, 5.9, -10.48]}>
-          <mesh>
-            <boxGeometry args={[3.8, 2.5, 0.08]} />
-            <meshStandardMaterial color="#66716b" emissive="#435149" emissiveIntensity={0.22} />
-          </mesh>
-          <mesh position={[0, 0, 0.06]}>
-            <boxGeometry args={[0.08, 2.8, 0.1]} />
-            <meshStandardMaterial color="#202522" />
-          </mesh>
-        </group>
-      ))}
+      <CityWindows fog={GYM_FOG} />
       {[-9, -4, 1, 6, 11].map((x) => (
         <mesh key={`beam-${x}`} position={[x, 9, -1]} rotation={[0, 0, -0.03]} castShadow>
           <boxGeometry args={[0.28, 0.28, 22]} />
