@@ -27,7 +27,7 @@ Model and WASM assets are copied into Vite's production output automatically.
 `fighter.glb` is exported from the team's `StormHacks_Base.blend` (Rigify humanoid) by
 `tools/blender/export_fighter.py`. The script rebuilds a plain 22-bone deform skeleton
 (`hips`, `upper_arm_L`, `forearm_L`, `hand_L`, …), merges Rigify twist segments into their
-parent bones, and exports only the `Body` mesh with no materials or animations. Re-run it
+parent bones, generates UVs with Smart UV Project (for the camera-baked skin) and exports only the `Body` mesh with no materials or animations. Re-run it
 after editing the .blend:
 
 ```sh
