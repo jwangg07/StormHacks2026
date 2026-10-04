@@ -7,6 +7,7 @@ import { useCamera } from '../cam/useCamera';
 import { useVideoStream } from '../cam/useVideoStream';
 import { usePoseLandmarker } from '../motion/usePoseLandmarker';
 import { EYE_FORWARD, EYE_HEIGHT, FirstPersonArms } from './FirstPersonArms';
+import { useSkin } from '../avatar/skinStore';
 import './firstPerson.css';
 
 class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -73,6 +74,7 @@ export function FirstPersonScreen() {
   useVideoStream(videoRef, stream, fail);
   const pose = usePoseLandmarker(videoRef, canvasRef, stream, true);
   const diagnostics = pose.diagnostics;
+  const skin = useSkin();
 
   // Entering this screen is the player's choice to set up, so request the camera now.
   const startOnce = useRef(start);
@@ -108,7 +110,7 @@ export function FirstPersonScreen() {
             <directionalLight position={[2, 5, 2]} intensity={2.2} />
             <SparringRoom />
             <Suspense fallback={null}>
-              <FirstPersonArms sampleRef={pose.latestSample} />
+              <FirstPersonArms sampleRef={pose.latestSample} skin={skin} />
             </Suspense>
           </Canvas>
         </SceneBoundary>
