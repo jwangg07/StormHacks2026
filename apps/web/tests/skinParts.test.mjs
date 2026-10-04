@@ -42,7 +42,8 @@ test('left upper arm points out to +X and down in the A-pose', () => {
 test('feet use up as their front because they point forward', () => {
   const foot = frame('foot_L');
   assert.ok(foot.axis[2] > 0.8, `foot axis ${foot.axis}`);
-  assert.ok(foot.u[1] > 0.9, `foot front ${foot.u}`);
+  assert.ok(foot.u[1] > 0.85, `foot front ${foot.u}`);
+  assert.ok(foot.axis[1] < 0, `foot pitches down toward the toe ${foot.axis}`);
   assert.ok(foot.length > 0.08);
 });
 
