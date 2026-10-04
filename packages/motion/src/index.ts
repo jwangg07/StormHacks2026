@@ -19,3 +19,12 @@ export {
   FOREARM_SHOULDER_RATIO,
 } from './arms';
 export type { ArmDirections, ArmPose, Direction } from './arms';
+export { PoseSmoother } from './smoothing';
+export { Calibration, ACTION_CHECKS, CALIBRATION_MS } from './calibration';
+export type { CalibrationBaseline, CalibrationStatus, ActionCheck } from './calibration';
+export { FeatureNormalizer, MOTION_FEATURE_VERSION } from './normalize';
+export type { NormalizedFeatures, ArmFeatures } from './normalize';
+export { ActionDetector, PUNCH_COOLDOWN_MS } from './detectors';
+export { MotionController, idleControls } from './controller';
+export type { MotionDiagnostics } from './controller';
+export { PracticeAdapter } from './practice';

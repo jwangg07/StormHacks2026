@@ -18,7 +18,7 @@ export interface PoseFrame {
 export interface MotionFrame {
   timestamp: number;
   tracking: TrackingState;
-  headOffset: { x: number; y: number };
+  headOffset: { x: number; y: number; z?: number };
   guard: boolean;
   duck: boolean;
   punch?: Hand;

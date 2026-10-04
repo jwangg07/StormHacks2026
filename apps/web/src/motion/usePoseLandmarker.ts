@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
-import { POSE_HISTORY_MS, TrackingMonitor, VISUAL_HOLD_MS } from '@wb/motion';
+import { POSE_HISTORY_MS, PoseSmoother, TrackingMonitor, VISUAL_HOLD_MS } from '@wb/motion';
 import type { PoseSample, TrackingStatus } from '@wb/motion';
 import { InferenceClient } from './inferenceClient';
 import { drawPose } from './drawPose';
 
+export interface PoseObservation {
+  kind: 'sample' | 'tracking' | 'stop';
+  sample: PoseSample | null;
+  state: TrackingStatus;
+  receivedAt: number;
+}
 interface PoseDiagnostics extends TrackingStatus {
   stream: MediaStream | null;
   phase: 'loading' | 'ready' | 'error';
@@ -12,6 +18,7 @@ interface PoseDiagnostics extends TrackingStatus {
   inferenceHz: number;
   inferenceMs: number;
   confidence: number;
+  renderHz: number;
   missingLandmarks: string[];
 }
 
@@ -27,6 +34,17 @@ export function usePoseLandmarker(
   const history = useRef<PoseSample[]>([]);
   const monitor = useRef<TrackingMonitor | null>(null);
   const overlayEnabled = useRef(showOverlay);
+  const observers = useRef(new Set<(event: PoseObservation) => void>());
+  const geometry = useRef<PoseSample['segmentRatios']>(undefined);
+  const subscribeSamples = useCallback((observer: (event: PoseObservation) => void) => {
+    observers.current.add(observer);
+    return () => {
+      observers.current.delete(observer);
+    };
+  }, []);
+  const setGeometry = useCallback((ratios: PoseSample['segmentRatios']) => {
+    geometry.current = ratios;
+  }, []);
 
   useEffect(() => {
     overlayEnabled.current = showOverlay;
@@ -36,6 +54,10 @@ export function usePoseLandmarker(
     latestSample.current = null;
     history.current = [];
     const tracking = new TrackingMonitor();
+    const smoother = new PoseSmoother();
+    const notify = (event: PoseObservation) => {
+      for (const observer of observers.current) observer(event);
+    };
     monitor.current = tracking;
     if (!stream) return;
     const canvas = canvasRef.current;
@@ -46,6 +68,8 @@ export function usePoseLandmarker(
     let lastSafePose: PoseSample | null = null;
     let lastSafeAt = -Infinity;
     let lastResultAt = -Infinity;
+    let displayFrames = 0;
+    let displayWindow = performance.now();
     let current: PoseDiagnostics = {
       stream,
       phase: 'loading',
@@ -54,6 +78,7 @@ export function usePoseLandmarker(
       inferenceHz: 0,
       inferenceMs: 0,
       confidence: 0,
+      renderHz: 0,
       missingLandmarks: [],
     };
     const publish = () => {
@@ -66,6 +91,7 @@ export function usePoseLandmarker(
       latestSample.current = null;
       history.current = [];
       lastSafePose = null;
+      smoother.reset();
       current = {
         ...current,
         phase: 'error',
@@ -74,6 +100,12 @@ export function usePoseLandmarker(
         inferenceHz: 0,
       };
       publish();
+      notify({
+        kind: 'stop',
+        sample: null,
+        state: tracking.stop(performance.now()),
+        receivedAt: performance.now(),
+      });
     };
     try {
       if (
@@ -99,7 +131,6 @@ export function usePoseLandmarker(
         onResult(result) {
           if (disposed) return;
           lastResultAt = result.receivedAt;
-          latestSample.current = result.sample;
           const state = tracking.observe(result.sample.tracking, result.receivedAt);
           const changed =
             current.tracking !== state.tracking ||
@@ -118,8 +149,13 @@ export function usePoseLandmarker(
           );
           if (result.sample.tracking === 'VALID') {
             history.current.push(result.sample);
-            lastSafePose = result.sample;
+            lastSafePose = smoother.update(result.sample);
+            latestSample.current = lastSafePose;
             lastSafeAt = result.receivedAt;
+          }
+          notify({ kind: 'sample', sample: result.sample, state, receivedAt: result.receivedAt });
+          if (lastSafePose) {
+            lastSafePose.segmentRatios = geometry.current;
           }
           if (changed || result.receivedAt - lastPublished >= 250) publish();
           // Start the next available frame on completion; rAF remains the fallback
@@ -138,6 +174,12 @@ export function usePoseLandmarker(
     const tick = () => {
       if (disposed) return;
       const now = performance.now();
+      displayFrames++;
+      if (now - displayWindow >= 1000) {
+        current.renderHz = (displayFrames * 1000) / (now - displayWindow);
+        displayFrames = 0;
+        displayWindow = now;
+      }
       if (current.phase === 'ready') {
         const state = tracking.refresh(now);
         const changed =
@@ -145,9 +187,12 @@ export function usePoseLandmarker(
           current.pauseRequired !== state.pauseRequired ||
           current.canResume !== state.canResume;
         current = { ...current, ...state };
+        if (changed) notify({ kind: 'tracking', sample: null, state, receivedAt: now });
+        if (now - lastSafeAt > VISUAL_HOLD_MS) latestSample.current = null;
         if (now - lastResultAt > VISUAL_HOLD_MS) {
           latestSample.current = null;
           history.current = [];
+          smoother.reset();
           current.inferenceHz = 0;
         }
         if (changed || now - lastPublished >= 250) publish();
@@ -166,6 +211,12 @@ export function usePoseLandmarker(
       cancelAnimationFrame(animation);
       client?.dispose();
       tracking.stop(performance.now());
+      notify({
+        kind: 'stop',
+        sample: null,
+        state: tracking.stop(performance.now()),
+        receivedAt: performance.now(),
+      });
       latestSample.current = null;
       history.current = [];
       if (canvas) drawPose(canvas, null);
@@ -180,5 +231,7 @@ export function usePoseLandmarker(
     history,
     confirmTracking,
     retry,
+    subscribeSamples,
+    setGeometry,
   };
 }

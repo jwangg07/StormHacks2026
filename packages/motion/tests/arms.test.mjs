@@ -1,22 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { Buffer } from 'node:buffer';
 import test from 'node:test';
-import { URL } from 'node:url';
-import ts from 'typescript';
+import { loadMotion } from './loadMotion.mjs';
 
-function moduleUrl(source) {
-  const { outputText } = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-  });
-  return `data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`;
-}
-const poseUrl = moduleUrl(await readFile(new URL('../src/pose.ts', import.meta.url), 'utf8'));
-const { createPoseSample, POSE_LANDMARKS } = await import(poseUrl);
-const armsSource = await readFile(new URL('../src/arms.ts', import.meta.url), 'utf8');
-const { ArmPoseEstimator, segmentDirection } = await import(
-  moduleUrl(armsSource.replace("'./pose'", JSON.stringify(poseUrl)))
-);
+const { createPoseSample, POSE_LANDMARKS } = await loadMotion('pose');
+const { ArmPoseEstimator, segmentDirection } = await loadMotion('arms');
 
 const point = (x, y, z = 0) => ({ x, y, z, visibility: 1 });
 const close = (actual, expected, message) =>

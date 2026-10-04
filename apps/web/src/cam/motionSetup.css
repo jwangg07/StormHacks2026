@@ -1,0 +1,105 @@
+.motion-setup {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--line, #33404d);
+  border-radius: 8px;
+  background: #111a25;
+  color: #f5f3eb;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.motion-setup h3 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+.motion-setup p {
+  margin: 10px 0;
+}
+.motion-checks {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.motion-checks li {
+  padding: 8px;
+  border: 1px solid #465463;
+  border-radius: 4px;
+}
+.motion-checks li[data-complete='true'] {
+  border-color: #6fcf8a;
+}
+.motion-check-label {
+  display: block;
+  color: #b7c2cc;
+  font-size: 12px;
+}
+.motion-progress progress {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  accent-color: #f5c76d;
+}
+.motion-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.motion-buttons button {
+  border: 0;
+  border-radius: 5px;
+  min-height: 40px;
+  padding: 8px 12px;
+  font: inherit;
+  font-weight: 700;
+  background: #f5c76d;
+  color: #101722;
+  cursor: pointer;
+}
+.motion-buttons button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.motion-sensitivity {
+  display: block;
+  margin-top: 16px;
+}
+.motion-setup input[type='range'] {
+  width: 100%;
+  min-height: 30px;
+  accent-color: #f5c76d;
+}
+.motion-feedback {
+  font-weight: 700;
+}
+.motion-counts,
+.motion-tip {
+  color: #b7c2cc;
+  font-size: 12px;
+}
+.motion-setup summary {
+  cursor: pointer;
+}
+.motion-setup dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.motion-setup dd {
+  margin: 0;
+}
+.motion-setup :is(button, input, summary):focus-visible {
+  outline: 3px solid #f5c76d;
+  outline-offset: 3px;
+}
+.fp-screen .fp-camera {
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+}
+.fp-camera .motion-setup {
+  margin: 0;
+  border-radius: 0;
+  border-width: 1px 0 0;
+  padding: 12px;
+}
