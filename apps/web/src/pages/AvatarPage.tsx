@@ -12,8 +12,6 @@ import { TurnDial } from '../avatar/TurnDial';
 import { useSkinCapture } from '../avatar/useSkinCapture';
 import './avatarStudio.css';
 
-const STEPS = ['Camera on', 'Step back', 'Turn around', 'Save'] as const;
-
 export function AvatarPage() {
   const camera = useCamera();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -27,13 +25,6 @@ export function AvatarPage() {
   const saved = state.result !== null && state.result === savedBlob;
   const filled = state.slots.filter(Boolean).length;
 
-  const step = !stream
-    ? 0
-    : state.phase === 'capturing'
-      ? 2
-      : state.phase === 'baking' || state.phase === 'review'
-        ? 3
-        : 1;
   const message = !stream
     ? camera.message
     : saved
@@ -43,132 +34,230 @@ export function AvatarPage() {
   async function save() {
     if (!state.result) return;
     const persisted = await saveSkin(state.result);
-    setStorageNote(persisted ? null : 'Saved for this session only. This browser is blocking local storage.');
+    setStorageNote(
+      persisted ? null : 'Saved for this session only. This browser is blocking local storage.',
+    );
   }
 
   let actions: ReactNode = null;
-  if (!stream)
+  if (!stream) {
     actions = (
-      <button className="studio-primary" type="button" disabled={camera.status === 'requesting'} onClick={() => void start()}>
-        {camera.status === 'error' ? 'Retry camera' : 'Turn camera on'}
+      <button
+        className="avatar-primary"
+        type="button"
+        disabled={camera.status === 'requesting'}
+        onClick={() => void start()}
+      >
+        {camera.status === 'requesting'
+          ? 'Waiting for camera'
+          : camera.status === 'error'
+            ? 'Retry camera'
+            : 'Turn camera on'}
       </button>
     );
-  else if (state.phase === 'framing')
+  } else if (state.phase === 'framing') {
     actions = state.armed ? (
-      <button className="studio-secondary" type="button" onClick={capture.disarm}>
-        Cancel
+      <button className="avatar-secondary" type="button" onClick={capture.disarm}>
+        Cancel scan
       </button>
     ) : (
-      <button className="studio-primary" type="button" onClick={capture.arm}>
+      <button className="avatar-primary" type="button" onClick={capture.arm}>
         Start scan
       </button>
     );
-  else if (state.phase === 'capturing')
+  } else if (state.phase === 'capturing') {
     actions = (
       <>
         {filled >= MIN_SLOTS_TO_FINISH ? (
-          <button className="studio-primary" type="button" onClick={capture.finish}>
-            Finish now
+          <button className="avatar-primary" type="button" onClick={capture.finish}>
+            Finish scan
           </button>
         ) : null}
-        <button className="studio-secondary" type="button" onClick={capture.cancel}>
-          Cancel
+        <button className="avatar-secondary" type="button" onClick={capture.cancel}>
+          Cancel scan
         </button>
       </>
     );
-  else if (state.phase === 'review')
+  } else if (state.phase === 'review') {
     actions = (
       <>
         {saved ? null : (
-          <button className="studio-primary" type="button" onClick={() => void save()}>
-            Save skin
+          <button className="avatar-primary" type="button" onClick={() => void save()}>
+            Save fighter skin
           </button>
         )}
-        <button className="studio-secondary" type="button" onClick={capture.retake}>
+        <button className="avatar-secondary" type="button" onClick={capture.retake}>
           Scan again
         </button>
       </>
     );
-  else if (state.phase === 'error')
+  } else if (state.phase === 'error') {
     actions = (
-      <button className="studio-primary" type="button" onClick={capture.retry}>
-        Retry
+      <button className="avatar-primary" type="button" onClick={capture.retry}>
+        Retry scan
       </button>
     );
+  }
+
+  const appearanceLabel = !preview
+    ? 'DEFAULT GYM COLORS'
+    : state.result && !saved
+      ? 'UNSAVED SKIN PREVIEW'
+      : 'SAVED FIGHTER SKIN';
+  const scanActive = state.phase === 'capturing' || state.phase === 'baking';
+  const phaseLabel =
+    state.phase === 'capturing'
+      ? `ANGLE CAPTURE ${String(filled).padStart(2, '0')} / 08`
+      : state.phase === 'baking'
+        ? 'BUILDING FIGHTER SKIN'
+        : state.phase === 'review'
+          ? saved
+            ? 'FIGHTER SKIN SAVED'
+            : 'PREVIEW READY'
+          : state.phase === 'error'
+            ? 'SCAN INTERRUPTED'
+            : stream
+              ? state.armed
+                ? 'FIND YOUR FRAME'
+                : 'READY TO SCAN'
+              : 'FIGHTER IDENTITY';
 
   return (
-    <main className="subpage">
-      <header className="topbar">
-        <Link className="wordmark" to="/" aria-label="Return to lobby">
-          <span className="wordmark-mark" aria-hidden="true" />
-          WebcamBoxer
-        </Link>
-        <Link className="back-link" to="/">
-          ← Back to lobby
-        </Link>
-      </header>
-      <section className="studio">
-        <div className="studio-panel">
-          <span className="section-kicker">AVATAR STUDIO</span>
-          <h1>Scan yourself in.</h1>
-          <p className="studio-lede">
-            Turn on your camera, step back so your whole body is in frame, and turn slowly in a full
-            circle. Your look is painted onto your fighter. Camera frames stay on this device.
-          </p>
-          <ol className="studio-steps">
-            {STEPS.map((label, index) => (
-              <li
-                key={label}
-                data-state={index < step || (index === 3 && saved) ? 'done' : index === step ? 'current' : 'todo'}
-              >
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                {label}
-              </li>
-            ))}
-          </ol>
-          <div className="studio-camera">
-            <video ref={videoRef} autoPlay muted playsInline aria-label="Mirrored camera preview" hidden={!stream} />
-            {stream ? (
-              <TurnDial slots={state.slots} yawDeg={state.phase === 'capturing' ? state.yawDeg : null} />
-            ) : (
-              <span className="studio-camera-off">CAMERA OFF</span>
-            )}
-          </div>
-          <p className="studio-status" role="status" aria-live="polite">
+    <main className="avatar-room">
+      <Link className="avatar-back" to="/" aria-label="Back to lobby">
+        <span aria-hidden="true">&lt;</span> LOBBY
+      </Link>
+      <section
+        className={`avatar-stage${scanActive ? ' is-scanning' : ''}`}
+        aria-label="Interactive fighter preview"
+      >
+        <div className="avatar-stage-grid" aria-hidden="true" />
+        <div className="avatar-stage-halo" aria-hidden="true" />
+        <Canvas
+          shadows
+          dpr={[1, 1.5]}
+          gl={{ antialias: false, powerPreference: 'high-performance' }}
+          camera={{ position: [0, 1.15, 3.8], fov: 31 }}
+        >
+          <color attach="background" args={['#181c1a']} />
+          <fog attach="fog" args={['#181c1a', 8, 19]} />
+          <hemisphereLight args={['#d7c9a5', '#171b1b', 1.05]} />
+          <ambientLight intensity={0.35} />
+          <directionalLight position={[2, 5, 4]} intensity={1.6} color="#f0d3a0" castShadow />
+          <spotLight
+            position={[-1, 6, 1]}
+            angle={0.52}
+            penumbra={0.7}
+            intensity={52}
+            distance={14}
+            color="#e6bd80"
+            castShadow
+          />
+          <directionalLight position={[-3, 2, -3]} intensity={0.85} color="#81908b" />
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.12, 0]} receiveShadow>
+            <planeGeometry args={[18, 18]} />
+            <meshStandardMaterial color="#272a26" roughness={1} flatShading />
+          </mesh>
+          <mesh position={[0, -0.08, 0]} receiveShadow castShadow>
+            <cylinderGeometry args={[1.08, 1.18, 0.18, 10]} />
+            <meshStandardMaterial color="#4d483c" roughness={0.94} flatShading />
+          </mesh>
+          <mesh position={[0, 0.018, 0]} receiveShadow>
+            <cylinderGeometry args={[1.02, 1.08, 0.035, 10]} />
+            <meshStandardMaterial color="#88785c" roughness={0.9} flatShading />
+          </mesh>
+          <Suspense fallback={null}>
+            <FighterModel skin={preview} pose="relaxed" />
+          </Suspense>
+          <OrbitControls
+            target={[0, 0.95, 0]}
+            autoRotate
+            autoRotateSpeed={0.4}
+            enableDamping
+            dampingFactor={0.06}
+            enablePan={false}
+            enableZoom
+            minDistance={2.8}
+            maxDistance={5.4}
+            minPolarAngle={1.1}
+            maxPolarAngle={1.95}
+          />
+        </Canvas>
+
+        {scanActive ? (
+          <>
+            <div className="avatar-scan-reticle" aria-hidden="true">
+              <span />
+            </div>
+            <div className="avatar-scan-sweep" aria-hidden="true" />
+          </>
+        ) : null}
+        <span className="avatar-stage-index">
+          AVATAR EDITOR <i /> UNIT 01
+        </span>
+        <div className="avatar-stage-corners" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+        <span className="avatar-rotate-hint">
+          DRAG TO ROTATE <i /> SCROLL TO ZOOM
+        </span>
+      </section>
+
+      <aside
+        className={`avatar-scan-console${stream ? ' has-camera' : ''}`}
+        aria-label="Fighter skin scan"
+      >
+        <div className="avatar-console-copy">
+          <span className="avatar-console-kicker">{phaseLabel}</span>
+          <p className="avatar-console-message" role="status" aria-live="polite">
             {message}
           </p>
-          <div className="studio-actions">
+          <div className="avatar-actions">
             {actions}
             {savedBlob ? (
-              <button className="studio-link" type="button" onClick={() => void clearSkin()}>
-                Use default skin
+              <button
+                className="avatar-default-action"
+                type="button"
+                onClick={() => void clearSkin()}
+              >
+                Default skin
               </button>
             ) : null}
           </div>
         </div>
-        <div className="studio-stage" aria-label="Preview of your fighter">
-          <Canvas camera={{ position: [0, 1.1, 3.6], fov: 35 }} dpr={[1, 1.5]}>
-            <hemisphereLight args={['#f5f3eb', '#2a3440', 1.3]} />
-            <directionalLight position={[2, 4, 3]} intensity={2} color="#f4d4a5" />
-            <directionalLight position={[-3, 2, -3]} intensity={0.8} color="#53a9d7" />
-            <Suspense fallback={null}>
-              <FighterModel skin={preview} pose="relaxed" />
-            </Suspense>
-            <OrbitControls
-              target={[0, 0.95, 0]}
-              autoRotate
-              autoRotateSpeed={1.2}
-              enablePan={false}
-              enableZoom={false}
-              minPolarAngle={1.2}
-              maxPolarAngle={1.9}
-            />
-          </Canvas>
-          <span className="studio-stage-note">
-            {!preview ? 'DEFAULT SKIN' : state.result && !saved ? 'PREVIEW · NOT SAVED' : 'YOUR SKIN'} · DRAG TO SPIN
-          </span>
-        </div>
-      </section>
+
+        {stream ? (
+          <div className="avatar-live-preview">
+            <span className="avatar-live-label">
+              <i /> LIVE CAMERA
+            </span>
+            <div className="avatar-camera-view">
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                aria-label="Mirrored full-body camera preview"
+              />
+              <span className="avatar-camera-corner avatar-camera-a" aria-hidden="true" />
+              <span className="avatar-camera-corner avatar-camera-b" aria-hidden="true" />
+            </div>
+          </div>
+        ) : null}
+
+        {scanActive ? (
+          <div className="avatar-scan-progress" aria-label={`${filled} of 8 scan angles captured`}>
+            <TurnDial slots={state.slots} yawDeg={state.yawDeg} />
+            <span>
+              <b>{String(filled).padStart(2, '0')}</b>
+              <small>/ 08 ANGLES</small>
+            </span>
+          </div>
+        ) : null}
+      </aside>
     </main>
   );
 }
