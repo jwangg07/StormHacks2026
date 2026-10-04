@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import type { Group, MeshStandardMaterial, Texture } from 'three';
 import type { Seat } from '@wb/core';
 import { FighterModel } from '../avatar/FighterModel';
+import { useSurface } from './surfaces';
 
 interface RingProps {
   active?: boolean;
@@ -44,20 +45,31 @@ export function Ring({ active = false, skins = {} }: RingProps) {
   });
 
   const ropeLevels = [0.35, 0.66, 0.97, 1.28];
+  const floor = useSurface('planks', 24, 16);
+  const apron = useSurface('padding', 8.3, 0.36);
+  const mat = useSurface('canvas', 7.8, 4.9);
+  const post = useSurface('paintedMetal', 0.13, 1.65);
+  const longRope = useSurface('rope', 8, 0.035);
+  const shortRope = useSurface('rope', 5, 0.035);
 
   return (
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.22, 0]} receiveShadow>
         <planeGeometry args={[24, 16]} />
-        <meshStandardMaterial color="#282a26" roughness={1} flatShading />
+        <meshStandardMaterial map={floor} color="#282a26" roughness={1} flatShading />
       </mesh>
       <mesh position={[0, -0.04, 0]} receiveShadow>
         <boxGeometry args={[8.3, 0.36, 5.4]} />
-        <meshStandardMaterial color="#403e37" roughness={0.97} flatShading />
+        <meshStandardMaterial map={apron} color="#403e37" roughness={0.97} flatShading />
       </mesh>
       <mesh position={[0, 0.15, 0]} receiveShadow>
         <boxGeometry args={[7.8, 0.08, 4.9]} />
-        <meshStandardMaterial color={active ? '#aaa28e' : '#827e70'} roughness={1} flatShading />
+        <meshStandardMaterial
+          map={mat}
+          color={active ? '#aaa28e' : '#827e70'}
+          roughness={1}
+          flatShading
+        />
       </mesh>
       <Suspense fallback={null}>
         {(['A', 'B'] as const).map((seat) => (
@@ -73,7 +85,13 @@ export function Ring({ active = false, skins = {} }: RingProps) {
         [-1, 1].map((z) => (
           <mesh key={`post-${x}-${z}`} position={[x * 4, 0.82, z * 2.5]} castShadow>
             <boxGeometry args={[0.13, 1.65, 0.13]} />
-            <meshStandardMaterial color="#77766c" metalness={0.18} roughness={0.82} flatShading />
+            <meshStandardMaterial
+              map={post}
+              color="#77766c"
+              metalness={0.18}
+              roughness={0.82}
+              flatShading
+            />
           </mesh>
         )),
       )}
@@ -84,6 +102,7 @@ export function Ring({ active = false, skins = {} }: RingProps) {
               <boxGeometry args={[8, 0.035, 0.035]} />
               <meshStandardMaterial
                 ref={ropeMaterial}
+                map={longRope}
                 color="#c9c0a9"
                 emissive="#f2a451"
                 emissiveIntensity={0.05}
@@ -93,7 +112,12 @@ export function Ring({ active = false, skins = {} }: RingProps) {
           {[-1, 1].map((x) => (
             <mesh key={`short-${x}`} position={[x * 4, y, 0]}>
               <boxGeometry args={[0.035, 0.035, 5]} />
-              <meshStandardMaterial color="#c9c0a9" emissive="#d89a4e" emissiveIntensity={0.05} />
+              <meshStandardMaterial
+                map={shortRope}
+                color="#c9c0a9"
+                emissive="#d89a4e"
+                emissiveIntensity={0.05}
+              />
             </mesh>
           ))}
         </group>

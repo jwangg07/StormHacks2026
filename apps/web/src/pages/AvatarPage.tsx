@@ -10,6 +10,7 @@ import { MIN_SLOTS_TO_FINISH } from '../avatar/skin/slots';
 import { clearSkin, saveSkin, useBlobTexture, useSkinBlob } from '../avatar/skinStore';
 import { TurnDial } from '../avatar/TurnDial';
 import { useSkinCapture } from '../avatar/useSkinCapture';
+import { useSurface } from '../game/surfaces';
 import './avatarStudio.css';
 
 export function AvatarPage() {
@@ -153,14 +154,7 @@ export function AvatarPage() {
             <planeGeometry args={[18, 18]} />
             <meshStandardMaterial color="#272a26" roughness={1} flatShading />
           </mesh>
-          <mesh position={[0, -0.08, 0]} receiveShadow castShadow>
-            <cylinderGeometry args={[1.08, 1.18, 0.18, 10]} />
-            <meshStandardMaterial color="#4d483c" roughness={0.94} flatShading />
-          </mesh>
-          <mesh position={[0, 0.018, 0]} receiveShadow>
-            <cylinderGeometry args={[1.02, 1.08, 0.035, 10]} />
-            <meshStandardMaterial color="#88785c" roughness={0.9} flatShading />
-          </mesh>
+          <Pedestal />
           <Suspense fallback={null}>
             <FighterModel skin={preview} pose="relaxed" />
           </Suspense>
@@ -187,9 +181,7 @@ export function AvatarPage() {
             <div className="avatar-scan-sweep" aria-hidden="true" />
           </>
         ) : null}
-        <span className="avatar-stage-index">
-          AVATAR EDITOR
-        </span>
+        <span className="avatar-stage-index">AVATAR EDITOR</span>
         <div className="avatar-stage-corners" aria-hidden="true">
           <span />
           <span />
@@ -254,5 +246,23 @@ export function AvatarPage() {
         ) : null}
       </aside>
     </main>
+  );
+}
+
+/** Same concrete plinth and diamond-plate top as the lobby's avatar podium. */
+function Pedestal() {
+  const plinth = useSurface('concrete', 7, 0.18);
+  const plate = useSurface('diamondPlate', 2, 2);
+  return (
+    <>
+      <mesh position={[0, -0.08, 0]} receiveShadow castShadow>
+        <cylinderGeometry args={[1.08, 1.18, 0.18, 10]} />
+        <meshStandardMaterial map={plinth} color="#4d483c" roughness={0.94} flatShading />
+      </mesh>
+      <mesh position={[0, 0.018, 0]} receiveShadow>
+        <cylinderGeometry args={[1.02, 1.08, 0.035, 10]} />
+        <meshStandardMaterial map={plate} color="#88785c" roughness={0.9} flatShading />
+      </mesh>
+    </>
   );
 }

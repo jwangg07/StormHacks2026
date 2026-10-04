@@ -5,6 +5,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { CanvasTexture, SRGBColorSpace, Vector3 } from 'three';
 import type { Group, MeshStandardMaterial, Texture } from 'three';
 import { FighterModel } from '../avatar/FighterModel';
+import { useSurface } from '../game/surfaces';
 
 /** Top of the gym floor the ring sits on. */
 const FLOOR_Y = -0.22;
@@ -260,6 +261,10 @@ export function BulletinBoard({
   const sheet = usePaintedTexture(512, 640, paintStats);
   const bout = usePaintedTexture(320, 240, paintBoutNote);
   const train = usePaintedTexture(320, 260, paintTrainNote);
+  const leg = useSurface('wood', 0.1, 2.4, { vertical: true });
+  const rail = useSurface('wood', 1.96, 0.07);
+  const frameWood = useSurface('wood', 2.2, 1.6);
+  const cork = useSurface('cork', 2.02, 1.42);
 
   useFrame(() => {
     if (lift.current) lift.current.position.y = energy.current * 0.06;
@@ -277,18 +282,19 @@ export function BulletinBoard({
           castShadow
         >
           <boxGeometry args={[0.1, 2.4, 0.1]} />
-          <meshStandardMaterial color="#3b3029" roughness={1} flatShading />
+          <meshStandardMaterial map={leg} color="#3b3029" roughness={1} flatShading />
         </mesh>
       ))}
       <mesh position={[0, 0.55, -0.04]}>
         <boxGeometry args={[1.96, 0.07, 0.07]} />
-        <meshStandardMaterial color="#3b3029" roughness={1} flatShading />
+        <meshStandardMaterial map={rail} color="#3b3029" roughness={1} flatShading />
       </mesh>
       <group ref={lift}>
         <mesh position={[0, 1.78, 0]} castShadow receiveShadow>
           <boxGeometry args={[2.2, 1.6, 0.1]} />
           <meshStandardMaterial
             ref={frame}
+            map={frameWood}
             color="#5b4030"
             emissive="#d89a4e"
             emissiveIntensity={0}
@@ -298,7 +304,7 @@ export function BulletinBoard({
         </mesh>
         <mesh position={[0, 1.78, 0.052]} receiveShadow>
           <boxGeometry args={[2.02, 1.42, 0.01]} />
-          <meshStandardMaterial color="#a2744b" roughness={1} />
+          <meshStandardMaterial map={cork} color="#a2744b" roughness={1} />
         </mesh>
         <Paper texture={sheet} size={[0.94, 1.18]} position={[-0.42, 1.76, 0.062]} tilt={-0.025} />
         <Paper
@@ -344,6 +350,10 @@ export function AvatarPodium({
   const trim = useRef<MeshStandardMaterial>(null);
   const energy = useHoverEnergy(hot);
   const plaque = usePaintedTexture(512, 112, paintPlaque);
+  // Whole repeats around each tier, so the pattern meets itself at the cylinder's UV seam.
+  const plinth = useSurface('concrete', 6, 0.18);
+  const tier = useSurface('concrete', 5, 0.24);
+  const plate = useSurface('diamondPlate', 1.5, 1.5);
 
   useFrame((_, dt) => {
     // Spin faster while hovered, as if the studio is showing the fighter off.
@@ -355,11 +365,11 @@ export function AvatarPodium({
     <group position={PODIUM_AT} rotation={[0, PODIUM_YAW, 0]} scale={PODIUM_SCALE}>
       <mesh position={[0, 0.09, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[1.02, 1.1, 0.18, 8]} />
-        <meshStandardMaterial color="#2f3331" roughness={0.95} flatShading />
+        <meshStandardMaterial map={plinth} color="#2f3331" roughness={0.95} flatShading />
       </mesh>
       <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[0.84, 0.9, 0.24, 8]} />
-        <meshStandardMaterial color="#454238" roughness={0.9} flatShading />
+        <meshStandardMaterial map={tier} color="#454238" roughness={0.9} flatShading />
       </mesh>
       <mesh position={[0, 0.43, 0]} rotation={[Math.PI / 2, 0, Math.PI / 8]}>
         <torusGeometry args={[0.85, 0.025, 4, 8]} />
@@ -377,7 +387,7 @@ export function AvatarPodium({
       <group ref={turntable} position={[0, 0.42, 0]}>
         <mesh position={[0, 0.02, 0]} receiveShadow>
           <cylinderGeometry args={[0.7, 0.7, 0.04, 16]} />
-          <meshStandardMaterial color="#5c5547" roughness={0.8} />
+          <meshStandardMaterial map={plate} color="#5c5547" roughness={0.8} />
         </mesh>
         <Suspense fallback={null}>
           <FighterModel

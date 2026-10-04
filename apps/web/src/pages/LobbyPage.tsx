@@ -5,6 +5,7 @@ import { Vector3 } from 'three';
 import type { Texture } from 'three';
 import { useSkin } from '../avatar/skinStore';
 import { Ring } from '../game/Ring';
+import { useSurface } from '../game/surfaces';
 import { useMultiplayer } from '../net/MultiplayerProvider';
 import { InvitePanel } from '../ui/InvitePanel';
 import { MusicToggle } from '../ui/MusicToggle';
@@ -26,13 +27,16 @@ const stats: StatLine[] = [
 ];
 
 const CAMERA_DISTANCE = 13.2;
-const CAMERA_HEIGHT = 4.7;
-/** Widest orbit, in radians, when the pointer reaches a screen edge. */
+/** Standing eye level: 1.7 m above the gym floor the ring sits on (y = -0.22). */
+const CAMERA_HEIGHT = 1.48;
+/** Widest head turn, in radians, when the pointer reaches a screen edge. */
 const MAX_PAN_YAW = 0.22;
 const PAN_SMOOTHING_S = 0.35;
 /** Length of the camera's fly-in to a prop, and back out to the orbit. */
 const FLY_S = 0.9;
 const MAX_FLY_STEP_S = 1 / 30;
+/** Where the camera stands when no prop is focused; it turns in place from here. */
+const STANDING = new Vector3(0, CAMERA_HEIGHT, CAMERA_DISTANCE);
 
 type Spot = 'ring' | 'card' | 'avatar';
 
@@ -52,15 +56,16 @@ const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: r
 
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
-const ORIGIN = new Vector3();
 const fromPosition = new Vector3();
 const fromTarget = new Vector3();
 const goalPosition = new Vector3();
+const goalTarget = new Vector3();
 const lookTarget = new Vector3();
 
 /**
- * Orbits the camera around the ring with the pointer. When a spot is focused, flies head-on
- * to that prop's shot and reports arrival; when focus clears, flies back to the live orbit.
+ * Turns the camera in place with the pointer, like a spectator looking around the gym. When a
+ * spot is focused, flies head-on to that prop's shot and reports arrival; when focus clears,
+ * flies back to the standing spot.
  */
 function LobbyCamera({ focus, onArrive }: { focus: Spot | null; onArrive: (spot: Spot) => void }) {
   const goal = useRef(0);
@@ -92,16 +97,22 @@ function LobbyCamera({ focus, onArrive }: { focus: Spot | null; onArrive: (spot:
     leg.t = Math.min(1, leg.t + Math.min(dt, MAX_FLY_STEP_S) / FLY_S);
     const k = easeInOutCubic(leg.t);
     const shot = focus ? SPOT_SHOTS[focus] : null;
-    if (shot) goalPosition.copy(shot.position);
-    else
-      goalPosition.set(
-        Math.sin(yaw.current) * CAMERA_DISTANCE,
-        CAMERA_HEIGHT,
-        Math.cos(yaw.current) * CAMERA_DISTANCE,
+    if (shot) {
+      goalPosition.copy(shot.position);
+      goalTarget.copy(shot.target);
+    } else {
+      // Swing the gaze about the camera, not the ring. The target stays on the ground plane
+      // CAMERA_DISTANCE ahead, so at rest it is the ring centre and the pitch never changes.
+      goalPosition.copy(STANDING);
+      goalTarget.set(
+        STANDING.x - Math.sin(yaw.current) * CAMERA_DISTANCE,
+        0,
+        STANDING.z - Math.cos(yaw.current) * CAMERA_DISTANCE,
       );
+    }
     camera.position.lerpVectors(fromPosition, goalPosition, k);
-    // R3F aims the default camera at the origin; steering a look target keeps the pitch from rolling.
-    lookTarget.lerpVectors(fromTarget, shot ? shot.target : ORIGIN, k);
+    // Steering a look target, rather than rotating the camera, keeps it from rolling.
+    lookTarget.lerpVectors(fromTarget, goalTarget, k);
     camera.lookAt(lookTarget);
     if (focus && leg.t === 1 && !leg.arrived) {
       leg.arrived = true;
@@ -126,6 +137,12 @@ function GymRoom({ hovered, skin, onHover, onSelect }: GymRoomProps) {
     onHover: (on: boolean) => onHover(name, on),
     onSelect: () => onSelect(name),
   });
+  const floor = useSurface('planks', 34, 28);
+  const backWall = useSurface('cinderBlock', 31, 11);
+  const sideWall = useSurface('cinderBlock', 24, 10);
+  const beam = useSurface('steel', 0.28, 22);
+  const bench = useSurface('wood', 5.4, 0.35);
+  const crowd = useSurface('cloth', 0.35, 0.58);
   return (
     <>
       <color attach="background" args={['#161817']} />
@@ -145,21 +162,21 @@ function GymRoom({ hovered, skin, onHover, onSelect }: GymRoomProps) {
       <spotLight position={[-7, 6, -3]} angle={0.8} intensity={24} color="#8b9ca0" distance={23} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.3, 0]} receiveShadow>
         <planeGeometry args={[34, 28]} />
-        <meshStandardMaterial color="#302e28" roughness={1} />
+        <meshStandardMaterial map={floor} color="#302e28" roughness={1} />
       </mesh>
 
       {/* Scuffed back wall, old gym windows and ceiling joists give the ring a place to live. */}
       <mesh position={[0, 5.1, -11]} receiveShadow>
         <boxGeometry args={[31, 11, 0.8]} />
-        <meshStandardMaterial color="#343633" roughness={1} flatShading />
+        <meshStandardMaterial map={backWall} color="#343633" roughness={1} flatShading />
       </mesh>
       <mesh position={[-15.2, 4.8, 0]} receiveShadow>
         <boxGeometry args={[0.8, 10, 24]} />
-        <meshStandardMaterial color="#292d2b" roughness={1} flatShading />
+        <meshStandardMaterial map={sideWall} color="#292d2b" roughness={1} flatShading />
       </mesh>
       <mesh position={[15.2, 4.8, 0]} receiveShadow>
         <boxGeometry args={[0.8, 10, 24]} />
-        <meshStandardMaterial color="#292d2b" roughness={1} flatShading />
+        <meshStandardMaterial map={sideWall} color="#292d2b" roughness={1} flatShading />
       </mesh>
       {[-9, -4, 1, 6, 11].map((x) => (
         <group key={x} position={[x, 5.9, -10.48]}>
@@ -176,7 +193,7 @@ function GymRoom({ hovered, skin, onHover, onSelect }: GymRoomProps) {
       {[-9, -4, 1, 6, 11].map((x) => (
         <mesh key={`beam-${x}`} position={[x, 9, -1]} rotation={[0, 0, -0.03]} castShadow>
           <boxGeometry args={[0.28, 0.28, 22]} />
-          <meshStandardMaterial color="#252927" roughness={0.94} flatShading />
+          <meshStandardMaterial map={beam} color="#252927" roughness={0.94} flatShading />
         </mesh>
       ))}
       {[-7, 0, 7].map((x) => (
@@ -203,12 +220,13 @@ function GymRoom({ hovered, skin, onHover, onSelect }: GymRoomProps) {
             <group key={row} position={[0, row * 0.48, -row * 0.28]}>
               <mesh position={[0, 0.18, 0]}>
                 <boxGeometry args={[5.4, 0.35, 0.55]} />
-                <meshStandardMaterial color="#343a38" roughness={0.98} flatShading />
+                <meshStandardMaterial map={bench} color="#343a38" roughness={0.98} flatShading />
               </mesh>
               {Array.from({ length: 7 }, (_, index) => (
                 <mesh key={index} position={[-2.25 + index * 0.74, 0.68, 0]}>
                   <boxGeometry args={[0.35, 0.58, 0.32]} />
                   <meshStandardMaterial
+                    map={crowd}
                     color={['#4e5150', '#6c5744', '#48545a', '#61524a'][index % 4]}
                     roughness={1}
                     flatShading
@@ -326,7 +344,7 @@ export function LobbyPage() {
     <main className="gym-lobby" data-hover={focus ? undefined : (hovered ?? undefined)}>
       <div className="gym-render" aria-hidden="true">
         <Canvas
-          camera={{ position: [0, 2.7, CAMERA_DISTANCE], fov: 39 }}
+          camera={{ position: [0, CAMERA_HEIGHT, CAMERA_DISTANCE], fov: 39 }}
           dpr={[1, 1]}
           shadows
           gl={{ antialias: false, powerPreference: 'high-performance' }}

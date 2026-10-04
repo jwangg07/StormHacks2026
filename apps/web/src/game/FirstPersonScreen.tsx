@@ -19,6 +19,7 @@ import { useMultiplayer } from '../net/MultiplayerProvider';
 import { publishSkin, useOpponentSkinBlob } from '../net/skinSync';
 import { useMultiplayerFight } from '../net/useMultiplayerFight';
 import { dodgeView, PUNCH_IMPACT_MS } from './boxingAnimation';
+import { useSurface } from './surfaces';
 import type { PunchCue } from './boxingAnimation';
 import { OpponentFighter } from './OpponentFighter';
 import './firstPerson.css';
@@ -68,6 +69,8 @@ function HeavyBag({ impact }: { impact: PunchCue | null }) {
   const bodyMaterial = useRef<MeshStandardMaterial>(null);
   const lastImpact = useRef<number | null>(null);
   const flashAt = useRef(-Infinity);
+  // Four stitched panels around the bag, two courses high.
+  const hide = useSurface('leather', 3.2, 1.6);
   useFrame(({ clock }) => {
     if (impact && lastImpact.current !== impact.id) {
       lastImpact.current = impact.id;
@@ -95,7 +98,13 @@ function HeavyBag({ impact }: { impact: PunchCue | null }) {
       </mesh>
       <mesh position={[0, 0.03, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[0.42, 0.56, 1.55, 9, 1]} />
-        <meshStandardMaterial ref={bodyMaterial} color="#75452f" roughness={0.98} flatShading />
+        <meshStandardMaterial
+          ref={bodyMaterial}
+          map={hide}
+          color="#75452f"
+          roughness={0.98}
+          flatShading
+        />
       </mesh>
       {[-0.53, 0.55].map((y) => (
         <mesh key={y} position={[0, y, 0]}>
@@ -139,26 +148,32 @@ function SparringRoom({
   showPracticeBag: boolean;
 }) {
   const sides = [-1, 1];
+  const floor = useSurface('planks', 22, 27);
+  const platform = useSurface('padding', 10.5, 0.3);
+  // The panel seams in the canvas run the length of the mat.
+  const mat = useSurface('canvasPanel', 10.1, 11.6);
+  const post = useSurface('paintedMetal', 0.2, 2.1);
+  const backRope = useSurface('rope', 10.2, 0.055);
+  const sideRope = useSurface('rope', 9.8, 0.055);
+  const wall = useSurface('cinderBlock', 23, 7);
+  const doorFrame = useSurface('wood', 1.4, 2.15, { vertical: true });
+  const doorPanel = useSurface('wood', 1.16, 1.88, { vertical: true });
+  const seat = useSurface('wood', 2.4, 0.55);
+  const benchLeg = useSurface('paintedMetal', 0.42, 0.44);
   return (
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.32, -7]} receiveShadow>
         <planeGeometry args={[22, 27]} />
-        <meshStandardMaterial color="#282925" roughness={1} flatShading />
+        <meshStandardMaterial map={floor} color="#282925" roughness={1} flatShading />
       </mesh>
       <mesh position={[0, -0.13, -6]} receiveShadow castShadow>
         <boxGeometry args={[10.5, 0.3, 12]} />
-        <meshStandardMaterial color="#473f33" roughness={1} flatShading />
+        <meshStandardMaterial map={platform} color="#473f33" roughness={1} flatShading />
       </mesh>
       <mesh position={[0, 0.03, -6]} receiveShadow>
         <boxGeometry args={[10.1, 0.05, 11.6]} />
-        <meshStandardMaterial color="#81745c" roughness={1} flatShading />
+        <meshStandardMaterial map={mat} color="#81745c" roughness={1} flatShading />
       </mesh>
-      {Array.from({ length: 9 }, (_, index) => (
-        <mesh key={`seam-${index}`} position={[-4.45 + index * 1.1, 0.058, -6]}>
-          <boxGeometry args={[0.016, 0.006, 11.35]} />
-          <meshStandardMaterial color="#574e3f" roughness={1} />
-        </mesh>
-      ))}
       {[-8.2, -3.8, 1.5].map((z, index) => (
         <mesh key={`wear-${z}`} position={[0, 0.061, z]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.48 + index * 0.06, 0.51 + index * 0.06, 8]} />
@@ -171,7 +186,7 @@ function SparringRoom({
           <group key={`post-${side}-${z}`} position={[side * 5.1, 0, z]}>
             <mesh position={[0, 1.02, 0]} castShadow>
               <boxGeometry args={[0.2, 2.1, 0.2]} />
-              <meshStandardMaterial color="#343735" roughness={0.9} flatShading />
+              <meshStandardMaterial map={post} color="#343735" roughness={0.9} flatShading />
             </mesh>
             <mesh position={[0, 1.86, 0.09]}>
               <boxGeometry args={[0.31, 0.42, 0.12]} />
@@ -185,6 +200,7 @@ function SparringRoom({
           <mesh position={[0, y, -10.9]}>
             <boxGeometry args={[10.2, 0.055, 0.055]} />
             <meshStandardMaterial
+              map={backRope}
               color={index % 2 ? '#75634b' : '#a49679'}
               roughness={1}
               flatShading
@@ -193,7 +209,7 @@ function SparringRoom({
           {sides.map((side) => (
             <mesh key={side} position={[side * 5.1, y, -6]}>
               <boxGeometry args={[0.055, 0.055, 9.8]} />
-              <meshStandardMaterial color="#85755a" roughness={1} flatShading />
+              <meshStandardMaterial map={sideRope} color="#85755a" roughness={1} flatShading />
             </mesh>
           ))}
         </group>
@@ -201,15 +217,15 @@ function SparringRoom({
 
       <mesh position={[0, 3.4, -14.2]} receiveShadow>
         <boxGeometry args={[23, 7, 0.5]} />
-        <meshStandardMaterial color="#393b35" roughness={1} flatShading />
+        <meshStandardMaterial map={wall} color="#393b35" roughness={1} flatShading />
       </mesh>
       <mesh position={[-5.1, 2.2, -13.92]}>
         <boxGeometry args={[1.4, 2.15, 0.05]} />
-        <meshStandardMaterial color="#8a563d" roughness={1} flatShading />
+        <meshStandardMaterial map={doorFrame} color="#8a563d" roughness={1} flatShading />
       </mesh>
       <mesh position={[-5.1, 2.2, -13.88]}>
         <boxGeometry args={[1.16, 1.88, 0.03]} />
-        <meshStandardMaterial color="#b89464" roughness={1} flatShading />
+        <meshStandardMaterial map={doorPanel} color="#b89464" roughness={1} flatShading />
       </mesh>
       <mesh position={[-5.1, 2.4, -13.84]}>
         <boxGeometry args={[0.72, 0.08, 0.02]} />
@@ -219,12 +235,12 @@ function SparringRoom({
         <group key={`bench-${x}`} position={[x, 0, -10]}>
           <mesh position={[0, 0.44, 0]}>
             <boxGeometry args={[2.4, 0.16, 0.55]} />
-            <meshStandardMaterial color="#4b4034" roughness={1} flatShading />
+            <meshStandardMaterial map={seat} color="#4b4034" roughness={1} flatShading />
           </mesh>
           {[-0.8, 0.8].map((leg) => (
             <mesh key={leg} position={[leg, 0.22, 0]}>
               <boxGeometry args={[0.09, 0.44, 0.42]} />
-              <meshStandardMaterial color="#343735" roughness={1} flatShading />
+              <meshStandardMaterial map={benchLeg} color="#343735" roughness={1} flatShading />
             </mesh>
           ))}
         </group>
